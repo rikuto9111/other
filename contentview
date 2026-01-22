@@ -1,0 +1,307 @@
+
+import SwiftUI
+import MapKit //GoogleMap的な　有料のライブラリ
+
+
+// 店情報モデル
+struct Shop: Identifiable {//店情報を格納する型
+    let id = UUID()//それぞれの店に一意性を持たせる
+    let name: String
+    let rating: Double
+    let coordinate: CLLocationCoordinate2D//緯度経度をもつ型 struct CLLocationCoordinate2D {var latitude: CLLocationDegrees   // 緯度var longitude: CLLocationDegrees  // 経度}
+    let isOpennow:Bool
+}
+
+// カスタムピン
+struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageがある
+    var rating: Double
+    var name:String
+    var isstate:Bool
+    //var number:String
+    @Binding var isTap:Bool
+    @Binding var shopname:String
+    //@Binding var phonenumber:String
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("⭐️\(rating, specifier: "%.1f")")
+                .font(.caption2)
+                .padding(4)
+                .background(Color.white)
+                .cornerRadius(6)
+                .shadow(radius: 2)
+            
+                Button(action:{shopname = name
+                    //phonenumber = number
+                    isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
+                        if isstate{
+                        Image("ramen") // Assetsにラーメンアイコンを追加
+                        
+                            .resizable()
+                            .foregroundColor(.blue)
+                            .frame(width: 32, height: 32)
+                        
+                    }
+                        else{
+                            Image("noramen") // Assetsにラーメンアイコンを追加
+                            
+                                .resizable()
+                                .foregroundColor(.blue)
+                                .frame(width: 32, height: 32)
+                        }
+            }
+
+            
+        }
+        .frame(width: 80, height: 70, alignment: .bottom)
+                .offset(y: -35)
+    }
+}
+
+struct RamenAnnotation_2: View {//こいつ自身表示させる型 Text imageがある
+    var rating: Double
+    var name:String
+
+    @Binding var isTap:Bool
+    @Binding var shopname:String
+    
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("⭐️\(rating, specifier: "%.1f")")
+                .font(.caption2)
+                .padding(4)
+                .background(Color.white)
+                .cornerRadius(6)
+                .shadow(radius: 2)
+            Button(action:{shopname = name
+                           isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
+                Image("ramenwhat") // Assetsにラーメンアイコンを追加
+                                   
+                    .resizable()
+                    .foregroundColor(.blue)
+                    .frame(width: 32, height: 32)
+                    
+            }
+            
+        }
+        .frame(width: 80, height: 70, alignment: .bottom)
+                .offset(y: -35)
+    }
+}
+
+struct RamenAnnotation_3: View {//こいつ自身表示させる型 Text imageがある
+    var rating: Double
+    var name:String
+
+    @Binding var isTap:Bool
+    @Binding var shopname:String
+    
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("⭐️\(rating, specifier: "%.1f")")
+                .font(.caption2)
+                .padding(4)
+                .background(Color.white)
+                .cornerRadius(6)
+                .shadow(radius: 2)
+            Button(action:{shopname = name
+                           isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
+                Image("ramenwhat") // Assetsにラーメンアイコンを追加
+                                   
+                    .resizable()
+                    .foregroundColor(.blue)
+                    .frame(width: 32, height: 32)
+                    
+            }
+            
+        }
+        .frame(width: 80, height: 70, alignment: .bottom)
+                .offset(y: -35)
+    }
+}
+
+
+
+struct ContentView: View {
+    @StateObject private var locationManager = LocationManager()//現在では一回だけLocationMangerを呼び出し　呼び出すとcenterをセッティングする
+    @State private var Ramendata = RamenData()
+    @State private var SearchRamendata = SearchRamenData()
+    
+    @State private var didFetch = false
+    @State var isTap = false
+    @State var searchtext:String = ""
+    
+    //@State private var region = MKCoordinateRegion(//@State変数はその中の値が変わるとviewと連結されるようになっている 自動更新 それを使っているviewに対して
+       // center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+        //span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+    //)//MKCoordinateRegionっていうのはcenter,spanっていう二つの値を持つ構造体である. でその構造体に対して値を入れ込んでいるってこと latideltaは0.02っていうのは範囲の広さ
+    
+    //@State private var shops: [Shop] = [] // 取得済み店をキャッシュ
+    @State var shopname:String = ""
+    @State var phonenumber:String = ""
+    
+    @State var isSearching:Bool = false
+    @State var isFlag:Bool = false
+    @State var isSearchRamen = false
+    
+    @State private var selectedShop:RamenShop? = nil
+    
+    var body: some View {
+        //if let region = locationManager.region{//アンラップした変数はただのローカル変数でありそれ自身の値をState変数(Binding)にはできない flagとしては使えるのかな？
+        //でもrealmswiftから撮ってくるときunlap表示してたような？ 少なくともBinding変数には使えない
+        ZStack(alignment:.bottom){
+                
+          
+            Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: Ramendata.shops + (selectedShop.map{[$0]} ?? [])) //Mapはviewプロトコル showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
+                //shopname = shop.name
+                {shop in
+                    //ForEach(Ramendata.shops){shop in
+                        
+                        MapAnnotation(coordinate: shop.coordinate) {//Mapの中で使って,緯度経度を渡せば　そこに中のviewをおいてくれるのがMapANnotation()
+                            //if let isOpenNow = shop.isOpenNow{//isOpenNowが空じゃなければ
+                            
+                            RamenAnnotation(rating: shop.rating,name:shop.name,isstate:shop.isOpenNow,isTap: $isTap,shopname:$shopname)
+                            //  }
+                            
+                            
+                            
+                        }
+                    
+                    
+                    
+                }
+            
+                    
+
+                    
+                    
+                
+                .allowsHitTesting(!isSearching)//検索中はMap操作をfalseにする
+                .safeAreaInset(edge: .top) {
+                    TextField("ラーメン屋を検索",text:$searchtext)
+                    
+                        .frame(width:360,height:60)
+                        .background(.white)
+                        .cornerRadius(30)
+                    //.offset(y:-680)//無理くり合わせている
+                    
+                        .padding(.top, 20)
+                        .onSubmit {
+                            
+                            let text = searchtext.contains("ラーメン") ? searchtext:"\(searchtext)ラーメン"
+                            let center = locationManager.region.center
+                            
+                            isSearching = true//検索中
+                            
+                            SearchRamendata.fetch(latitude: center.latitude, longitude: center.longitude,text:text)//一応自分周りで検索をかける
+                            //まだ自分awaitとTaskを理解してないのかもしれない　awaitはなに　その処理をやっている時でも
+                            //contentviewは進んでいくの？　処理終わったら通知がいくみたいな？
+                            
+                                
+                        
+                                isSearching = false//この場所においたら果たしてうまくいってるのだろうか？
+                            }
+
+                       /* .onChange(of:SearchRamendata.ramenshops[0]){
+                            if let ramenshops = SearchRamendata.ramenshops.first{//とりあえず今は検索結果の一番上
+                                //print(SearchRamendata)
+                                locationManager.region = MKCoordinateRegion(
+                                    center: CLLocationCoordinate2D(latitude: ramenshops.coordinate.latitude, longitude: ramenshops.coordinate.longitude),
+                                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                )//regionの更新
+                                print(1)
+                            }
+                            isSearching = false//この場所においたら果たしてうまくいってるのだろうか？
+                        }*/
+                        
+                }
+                .onChange(of:SearchRamendata.ramenshops.count){_ in
+                    //guard let first = SearchRamendata.ramenshops.first else{return}
+                    
+                    
+                    
+                    isSearchRamen = true//検索アイテムが入ったかどうか
+                    //if let ramenshops = SearchRamendata.ramenshops.first{//とりあえず今は検索結果の一番上
+                    //print(SearchRamendata)
+                   // locationManager.region = MKCoordinateRegion(
+                        //center: CLLocationCoordinate2D(latitude: first.coordinate.latitude, longitude: first.coordinate.longitude),
+                        //span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        
+                    //)//regionの更新
+                    //selectedShop = first
+                    
+                        //print(1)
+                    //if let shop = selectedShop{
+                       // print("a")
+                       // print(shop)
+                    //}
+                }
+                
+                // else{
+                //    Text("取得中")
+                //  }
+                
+                //.onChange(of:locationManager.region) {region in// こういう二つ以上のフィールドの比較はできない
+                .onChange(of:locationManager.didSetInitialRegion)//こいつを起動したら現在地周辺を検索できる　経度が全く同じラインの地点が現在地だと東京から変化がなくonChangeが起動しないからラーメン屋が入らない
+                {done in //こいつをフラグにすることで位置情報が現在地に入ったら動くようにする　-> その周辺のラーメンを手に入れるようにする
+                    guard done, !didFetch else { return }
+                    didFetch = true
+                    let center = locationManager.region.center
+                    Ramendata.fetch(
+                        latitude: center.latitude,
+                        longitude: center.longitude
+                    )
+                    
+                    
+                    print(Ramendata)
+                }
+           
+                
+            if isSearchRamen{
+                VStack{
+                    List{
+                        ForEach(SearchRamendata.ramenshops){shop in
+                            Button(action:{
+                                
+                                selectedShop = shop
+                                locationManager.region = MKCoordinateRegion(
+                                    center: CLLocationCoordinate2D(latitude: shop.coordinate.latitude, longitude: shop.coordinate.longitude),
+                                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                    
+                                )//regionの更新
+                                isSearchRamen = false//それぞれのアイテムにボタンを設置している
+                            }){//押したら閉じる
+                                Text(shop.name)
+                            }
+                        }
+                    }
+                }
+            }
+                if isTap{
+                    VStack{
+                        
+                        Text(shopname)
+                            .font(.title3)
+                            .bold()
+                        Text(phonenumber)
+                        
+                        
+                        Spacer()
+                    }
+                    .frame(width: 400,height:300)
+                    .offset(y: 20)
+                    .background(.white)
+                }
+                
+            }
+        }
+    }
+
+    
+    
+
+
+//星を表示している位置が不安定 という大問題
+// 
