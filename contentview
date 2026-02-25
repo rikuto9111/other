@@ -1,7 +1,7 @@
 
 import SwiftUI
 import MapKit //GoogleMap的な　有料のライブラリ
-
+import CoreLocation
 
 // 店情報モデル
 struct Shop: Identifiable {//店情報を格納する型
@@ -20,6 +20,14 @@ struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageが�
     //var number:String
     @Binding var isTap:Bool
     @Binding var shopname:String
+    
+    var shopregularhours:[String]
+    @Binding var selectshopregularhours:[String]
+    
+    @Binding var targetdestination:CLLocationCoordinate2D
+    var destination:CLLocationCoordinate2D
+    @Binding var selectrating:Double
+    
     //@Binding var phonenumber:String
     
     var body: some View {
@@ -32,6 +40,9 @@ struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageが�
                 .shadow(radius: 2)
             
                 Button(action:{shopname = name
+                    targetdestination = destination
+                    selectrating = rating
+
                     //phonenumber = number
                     isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
                         if isstate{
@@ -75,7 +86,7 @@ struct RamenAnnotation_2: View {//こいつ自身表示させる型 Text image�
                 .cornerRadius(6)
                 .shadow(radius: 2)
             Button(action:{shopname = name
-                           isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
+                                           isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
                 Image("ramenwhat") // Assetsにラーメンアイコンを追加
                                    
                     .resizable()
@@ -122,7 +133,21 @@ struct RamenAnnotation_3: View {//こいつ自身表示させる型 Text image�
     }
 }
 
+/*
+struct RouteOverlay: View {
+    let route: MKRoute?
 
+    var body: some View {
+        if let route {
+            MapPolyline(route.polyline)
+                .stroke(.blue, lineWidth: 5)
+        }
+        else{
+            EmptyView()
+        }
+    }
+}
+*/
 
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()//現在では一回だけLocationMangerを呼び出し　呼び出すとcenterをセッティングする
@@ -140,6 +165,7 @@ struct ContentView: View {
     
     //@State private var shops: [Shop] = [] // 取得済み店をキャッシュ
     @State var shopname:String = ""
+    @State var targetdestination:CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917)
     @State var phonenumber:String = ""
     
     @State var isSearching:Bool = false
@@ -148,12 +174,23 @@ struct ContentView: View {
     
     @State private var selectedShop:RamenShop? = nil
     
+    @State var selectshopregularhours:[String] = []
+    
+    @State var route:MKRoute? = nil
+    @State var selecttransportation = ""
+    
+    @State var selectrating = 0.0
+    
+    @State var targetroutedistance = 0.0
+    @State var targetroutetime = 0
+    //@State var targetrouteshape:MKPolyline = MKPolyline() //初期化しづらいらしい
+    
     var body: some View {
         //if let region = locationManager.region{//アンラップした変数はただのローカル変数でありそれ自身の値をState変数(Binding)にはできない flagとしては使えるのかな？
         //でもrealmswiftから撮ってくるときunlap表示してたような？ 少なくともBinding変数には使えない
         ZStack(alignment:.bottom){
                 
-          
+          /*
             Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: Ramendata.shops + (selectedShop.map{[$0]} ?? [])) //Mapはviewプロトコル showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
                 //shopname = shop.name
                 {shop in
@@ -162,7 +199,7 @@ struct ContentView: View {
                         MapAnnotation(coordinate: shop.coordinate) {//Mapの中で使って,緯度経度を渡せば　そこに中のviewをおいてくれるのがMapANnotation()
                             //if let isOpenNow = shop.isOpenNow{//isOpenNowが空じゃなければ
                             
-                            RamenAnnotation(rating: shop.rating,name:shop.name,isstate:shop.isOpenNow,isTap: $isTap,shopname:$shopname)
+                            RamenAnnotation(rating: shop.rating,name:shop.name,isstate:shop.isOpenNow,isTap: $isTap,shopname:$shopname,targetdestination:$targetdestination,destination:shop.coordinate)
                             //  }
                             
                             
@@ -172,6 +209,75 @@ struct ContentView: View {
                     
                     
                 }
+                .overlay{
+                    
+                    RouteOverlay(route: route)
+                            
+                    
+                }
+          */
+            var allShops: [RamenShop] {
+                var shops = Ramendata.shops
+                if let selectedShop {
+                    shops.append(selectedShop)
+                }
+                return shops
+            }
+            
+            var displayShops: [RamenShop] {
+                (Ramendata.shops + (selectedShop.map { [$0] } ?? []))
+                    .compactMap { shop in
+                        guard shop.regularHours != nil else { return nil }
+                        return shop
+                    }
+            }
+            Map(position: .constant(.region(locationManager.region))) {//Mapなんだけど この中にルートも出すためのプロトコル
+                
+                
+            //ForEach(Ramendata.shops + (selectedShop.map{[$0]} ?? [])) { shop in
+                
+                ForEach(displayShops) { shop in
+                    //guard let regularhours = shop.regularHours else{return} 何もない場合にもViewを返さないといけないから returnはダメ
+                    //if let regularhours = shop.regularHours{
+                        Annotation(shop.name, coordinate: shop.coordinate) {
+                            RamenAnnotation(
+                                rating: shop.rating,
+                                name: shop.name,
+                                isstate: shop.isOpenNow,
+                                isTap: $isTap,
+                                shopname: $shopname,
+                                
+                                shopregularhours:shop.regularHours!,
+                                selectshopregularhours:$selectshopregularhours,
+                                
+                                targetdestination: $targetdestination,
+                                destination: shop.coordinate,
+                                selectrating:$selectrating
+                            )
+                        }
+                   // }
+                   // else{
+                   //     EmptyView()
+                   // }
+                    
+                }
+                 
+                
+                
+                Annotation("",coordinate: locationManager.region.center) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                            Circle().stroke(Color.white, lineWidth: 3)
+                                        )
+                    }
+
+                if let route {
+                    MapPolyline(route.polyline)
+                        .stroke(.blue, lineWidth: 5)
+                }
+            }
             
                     
 
@@ -180,7 +286,7 @@ struct ContentView: View {
                 
                 .allowsHitTesting(!isSearching)//検索中はMap操作をfalseにする
                 .safeAreaInset(edge: .top) {
-                    TextField("ラーメン屋を検索",text:$searchtext)
+                    TextField("　ラーメン屋を検索",text:$searchtext)
                     
                         .frame(width:360,height:60)
                         .background(.white)
@@ -257,8 +363,39 @@ struct ContentView: View {
                     
                     print(Ramendata)
                 }
-           
+            
+            VStack{
+                Spacer()
+                    .frame(height:150)
                 
+                HStack{
+                    Spacer()
+                    
+              
+                    Button(action:{locationManager.requestLocation()//ボタン押したらその店の名前を呼び出し元と共有する
+                    }){Image(systemName:"location.fill") // Assetsにラーメンアイコンを追加
+                                           
+                            .font(.system(size:20))
+                            .foregroundColor(.blue)
+                            
+                            
+                            .frame(width:60,height:60)
+                            
+                            .background(Color.white)
+                            .cornerRadius(30)
+                            
+                            
+                        
+                    
+                    
+                }
+                    
+                    Spacer().frame(width:10)
+                }
+                Spacer()
+                    
+            }
+            
             if isSearchRamen{
                 VStack{
                     List{
@@ -281,11 +418,145 @@ struct ContentView: View {
             }
                 if isTap{
                     VStack{
+                        ZStack(alignment:.center){//こいつがないとpaddingしたボタンの位置は移動することになる
+                            
+                            
+                            HStack{
+                                Spacer()
+                                    .frame(width:30)
+                                
+                                Text("⭐️\(selectrating, specifier: "%.1f")")
+                                
+                                Spacer()
+                            }
+                            Text(shopname)//図1
+                            
+                                .font(.title3)
+                                .bold()
+                                .multilineTextAlignment(.center)//複数行重ねて中央
+                                .padding(.horizontal,80)
+                            
+                            HStack{//図2
+                                Spacer()
+                                
+                                Button("戻る"){
+                                    route = nil//全然空代入いけたわ ということで戻るでからにします
+                                    isTap = false
+                                    
+                                }
+                                Spacer()
+                                    .frame(width:20)
+                                
+                            }
+                        }
                         
-                        Text(shopname)
-                            .font(.title3)
-                            .bold()
-                        Text(phonenumber)
+                        Spacer()
+                            .frame(height: 20)
+                        
+                        HStack{
+                            Spacer()
+                                .frame(width:20)
+                            
+                            Button(action:{
+                                Task{//スレッド数は有限　Taskを呼び出すとTask内の処理用に空いているスレッドを呼び出す => awaitするとそいつは解放される Backgroundスレッドが計算する => 終わったらまた空いているスレッドが実行
+                                    do{
+                                        let request = MKDirections.Request()
+                                        request.source = MKMapItem.forCurrentLocation()
+                                        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: targetdestination))
+                                        if selecttransportation == "電車・バス"{
+                                            request.transportType = .transit
+                                        }
+                                        if selecttransportation == "自動車"{
+                                            request.transportType = .automobile
+                                        }
+                                        else{
+                                            request.transportType = .walking
+                                        }
+                                        let directions = MKDirections(request:request)
+                                        
+                                        let response = try await directions.calculate()//これって本当に非同期　一旦終わるまで待っていて欲しいのと、検索中にUIは動かしていて欲しいけど
+                                        
+                                        if let routef = response.routes.first{
+                                            //print(route.distance)
+                                            //targetroutedistance = Double(route.distance)
+                                            //targetroutetime = Int(route.expectedTravelTime)
+                                            route = routef
+                                            //targetrouteshape = route.polyline
+                                        }
+                                        
+                                    }
+                                    catch{
+                                        print("残念")
+                                    }
+                                }
+                            }){
+                                Text("経路検索")
+                                    .frame(width: 120,height: 50)
+                                    .foregroundColor(.blue)
+                                    
+                                //.background(Color.blue.opacity(0.5))
+                                //.cornerRadius(25)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(Color.blue, lineWidth: 2)
+                                        
+                                    )
+                            }
+                            
+                            Spacer()
+                                .frame(width:20)
+                            
+                            Picker(selection: $selecttransportation) {  //検索する際にPickerで選択しなければ検索ワードを入力できないようになっている
+                                Text("徒歩")  //表面上見えてるもの
+                                    .tag("徒歩")  //tagの値がselectconditionにはセットされている
+                                Text("電車・バス")
+                                    .tag("電車・バス")
+                                Text("自動車")
+                                    .tag("自動車")
+                                
+                                
+                            } label: {
+                                Text("移動手段")
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width:100)
+                            .overlay{
+                                HStack{
+                                    
+                                    if selecttransportation == ""{
+                                        Text("手段")
+                                    }
+                                    Spacer()
+                                    
+                                }
+                            }
+                            
+                            Spacer()
+                                .frame(width:5)
+                            
+                            Button("経路案内"){
+                                
+                                let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: targetdestination))//CLLocationCoordinate2D → ただの座標
+                                //MKPlacemark → 地点
+                                //MKMapItem → マップアプリに渡せる目的地
+                                mapItem.name = shopname//map上での名前情報を入れる
+                                mapItem.openInMaps(launchOptions: [//アプリを開く
+                                    MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking//徒歩での検索
+                                                                  ])
+                                
+                            }
+                            .frame(width:120,height:50)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.blue, lineWidth: 2)
+                                
+                            )
+                            
+                            
+                            Spacer()
+                        }
+                        
+                       
                         
                         
                         Spacer()
