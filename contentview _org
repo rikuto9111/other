@@ -363,7 +363,8 @@ struct ContentView: View {
                     Spacer()
                     
               
-                    Button(action:{locationManager.requestLocation()//ボタン押したらその店の名前を呼び出し元と共有する
+                    Button(action:{//locationManager.requestLocation()//ボタン押したらその店の名前を呼び出し元と共有する
+                        locationManager.startUpdatingLocation()
                     }){Image(systemName:"location.fill") // Assetsにラーメンアイコンを追加
                                            
                             .font(.system(size:20))
