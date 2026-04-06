@@ -1,0 +1,243 @@
+
+            if isTap{
+                
+                VStack{
+                    ScrollView{
+                        ZStack(alignment:.center){//こいつがないとpaddingしたボタンの位置は移動することになる
+                            
+                            
+                            HStack{
+                                Spacer()
+                                    .frame(width:30)
+                                
+                                Text("⭐️\(selectrating, specifier: "%.1f")")
+                                
+                                
+                                Spacer()
+                            }
+                            
+                            if let slevaluate = selectevaluate{//空じゃないなら
+                                Text(String(slevaluate))
+                            }
+                            
+                            Text(shopname)//図1
+                            
+                                .font(.title3)
+                                .bold()
+                                .multilineTextAlignment(.center)//複数行重ねて中央
+                                .padding(.horizontal,80)
+                            
+                            HStack{//図2
+                                Spacer()
+                                
+                                Button("戻る"){
+                                    route = nil//全然空代入いけたわ ということで戻るでからにします
+                                    isTime = false //必ずlistは閉じる
+                                    
+                                    isTap = false
+                                    
+                                }
+                                Spacer()
+                                    .frame(width:20)
+                                
+                            }
+                            
+                        }
+                        
+                        
+                        Spacer()
+                            .frame(height: 20)
+                        
+                        
+                        HStack{
+                            Spacer()
+                                .frame(width:20)
+                            
+                            Button(action:{
+                                Task{//スレッド数は有限　Taskを呼び出すとTask内の処理用に空いているスレッドを呼び出す => awaitするとそいつは解放される Backgroundスレッドが計算する => 終わったらまた空いているスレッドが実行
+                                    do{
+                                        let request = MKDirections.Request()
+                                        request.source = MKMapItem.forCurrentLocation()
+                                        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: targetdestination))
+                                        if selecttransportation == "電車・バス"{
+                                            request.transportType = .transit
+                                        }
+                                        if selecttransportation == "自動車"{
+                                            request.transportType = .automobile
+                                        }
+                                        else{
+                                            request.transportType = .walking
+                                        }
+                                        let directions = MKDirections(request:request)
+                                        
+                                        let response = try await directions.calculate()//これって本当に非同期　一旦終わるまで待っていて欲しいのと、検索中にUIは動かしていて欲しいけど
+                                        
+                                        if let routef = response.routes.first{
+                                            //print(route.distance)
+                                            //targetroutedistance = Double(route.distance)
+                                            //targetroutetime = Int(route.expectedTravelTime)
+                                            route = routef
+                                            //targetrouteshape = route.polyline
+                                        }
+                                        
+                                    }
+                                    catch{
+                                        print("移動方法を選択してね")
+                                    }
+                                }
+                            }){
+                                Text("距離検索")
+                                    .frame(width: 120,height: 50)
+                                    .foregroundColor(.blue)
+                                
+                                //.background(Color.blue.opacity(0.5))
+                                //.cornerRadius(25)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(Color.blue, lineWidth: 2)
+                                        
+                                    )
+                            }
+                            
+                            Spacer()
+                                .frame(width:20)
+                            
+                            Picker(selection: $selecttransportation) {  //検索する際にPickerで選択しなければ検索ワードを入力できないようになっている
+                                Text("徒歩")  //表面上見えてるもの
+                                    .tag("徒歩")  //tagの値がselectconditionにはセットされている
+                                Text("電車・バス")
+                                    .tag("電車・バス")
+                                Text("自動車")
+                                    .tag("自動車")
+                                
+                                
+                            } label: {
+                                Text("移動手段")
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width:100)
+                            .overlay{
+                                HStack{
+                                    
+                                    if selecttransportation == ""{
+                                        Text("手段")
+                                    }
+                                    Spacer()
+                                    
+                                }
+                            }
+                            
+                            Spacer()
+                                .frame(width:5)
+                            
+                            Button("経路案内"){
+                                
+                                let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: targetdestination))//CLLocationCoordinate2D → ただの座標
+                                //MKPlacemark → 地点
+                                //MKMapItem → マップアプリに渡せる目的地
+                                mapItem.name = shopname//map上での名前情報を入れる
+                                mapItem.openInMaps(launchOptions: [//アプリを開く
+                                    MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking//徒歩での検索
+                                                                  ])
+                                
+                            }
+                            .frame(width:120,height:50)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.blue, lineWidth: 2)
+                                
+                            )
+                            
+                            
+                            Spacer()
+                        }
+                        
+                        
+                        if let route{//let rt = route がアンラップだと思っていたんだけど これは何?
+                            
+                            Text("\(String(route.distance))m")
+                        }
+                        else{
+                            Text("　　")
+                        }
+                        
+                        if !isvisititem{
+                            
+                            
+                            
+                            Button("訪問"){//vramendatabaseに入っているならこのボタンそのものを表示しないようにしたら何回も押すことはなくなるかな？
+                                
+                                isvisitalert = true//alert呼び出し
+                                
+                                
+                            }
+                        }
+                        
+                        else{
+                            Button("訪問削除"){
+                                if let vid = visitid{
+                                    
+                                    delete(vid:vid)
+                                    isvisititem = false
+                                }
+                            }
+                        }
+                        
+                        Button("営業時間"){
+                            isTime.toggle()
+                            //Text(selectshopregularhours[0])
+                        }
+                        .frame(width:120,height:50)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.blue, lineWidth: 2)
+                            
+                        )
+                        
+                        if isTime{
+                            ForEach(selectshopregularhours,id: \.self){item in
+                                
+                                Text(item)
+                                    .frame(width:250, alignment: .leading)  //VStackalignmentはVStackの子ビューの相対的な位置を左にする!!  これはTextの中の文字の相対的な位置
+                                    .fixedSize(horizontal: false, vertical: true) // 水平方向は固定、垂直は自動
+                                
+                                
+                                Spacer()
+                                
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    .frame(width: 400,height:300)
+                    .offset(y: 20)
+                    .background(Color(red:0.99,green:0.97,blue:0.86))
+                    
+                    .onAppear(){//本当はメソッドに逃した方が良い
+                        if let vid = visitid{
+                            do{
+                                let realm = try Realm()
+                                
+                                if let obj = realm.object(ofType: VRamenDatabase.self, forPrimaryKey: vid){//フィルターでも取れるけど主キーならこれが良いかな
+                             
+                                        selectevaluate = obj.evaluate
+                                        selectimpress = obj.isimpress
+                                    
+                                }
+                                    //Text(selectevaluate)
+                                
+                            }catch{
+                                print("")
+                            }
+                            //Text(selectevaluate)
+                            
+                            
+                            
+                        }
+                        
+                        
+                    }
+                }
+                
+                .zIndex(1)
+            }
