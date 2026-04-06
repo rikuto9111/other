@@ -1,0 +1,249 @@
+
+            if isTap {
+                ZStack {
+                    
+                    // 背景ぼかし
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            isTap = false
+                        }
+                    
+                    VStack {
+                        Spacer()
+                        
+                        ScrollView {
+                            
+                            VStack(spacing: 0) {
+                                
+                                // ===== ヘッダー画像 =====
+                                ZStack(alignment: .topTrailing) {
+                                    Image("ramen_sample") // ← 店画像に置き換え
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(height: 200)
+                                        .clipped()
+                                    
+                                    // 閉じるボタン
+                                    Button(action: {
+                                        isTap = false
+                                    }) {
+                                        Image(systemName: "xmark")
+                                            .foregroundColor(.white)
+                                            .padding(10)
+                                            .background(Color.black.opacity(0.6))
+                                            .clipShape(Circle())
+                                    }
+                                    .padding()
+                                }
+                                
+                                
+                                // ===== メインカード =====
+                                VStack(alignment: .leading, spacing: 16) {
+                                    
+                                    // 店名 + 評価
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        
+                                        Text(shopname)
+                                            .font(.title)
+                                            .bold()
+                                        
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "star.fill")
+                                                .foregroundColor(.yellow)
+                                            
+                                            Text("\(selectrating, specifier: "%.1f")")
+                                                .font(.headline)
+                                            
+                                            Text("評価")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                    
+                                    
+                                    // コメント
+                                    if let slevaluate = selectevaluate {
+                                        Text(String(slevaluate))
+                                            .font(.body)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    
+                                    Divider()
+                                    
+                                    
+                                    // ===== 距離情報 =====
+                                    if let route {
+                                        HStack {
+                                            VStack(alignment: .leading) {
+                                                Text("距離")
+                                                    .font(.caption)
+                                                    .foregroundColor(.gray)
+                                                
+                                                Text("\(Int(route.distance)) m")
+                                                    .font(.title3)
+                                                    .bold()
+                                            }
+                                            
+                                            Spacer()
+                                        }
+                                    }
+                                    
+                                    
+                                    // ===== 操作系 =====
+                                    VStack(spacing: 12) {
+                                        
+                                        // 距離検索
+                                        Button(action: {
+                                            Task {
+                                                do {
+                                                    let request = MKDirections.Request()
+                                                    request.source = MKMapItem.forCurrentLocation()
+                                                    request.destination = MKMapItem(
+                                                        placemark: MKPlacemark(coordinate: targetdestination)
+                                                    )
+                                                    
+                                                    if selecttransportation == "電車・バス" {
+                                                        request.transportType = .transit
+                                                    } else if selecttransportation == "自動車" {
+                                                        request.transportType = .automobile
+                                                    } else {
+                                                        request.transportType = .walking
+                                                    }
+                                                    
+                                                    let directions = MKDirections(request: request)
+                                                    let response = try await directions.calculate()
+                                                    
+                                                    if let routef = response.routes.first {
+                                                        route = routef
+                                                    }
+                                                    
+                                                } catch {
+                                                    print("移動方法を選択してね")
+                                                }
+                                            }
+                                        }) {
+                                            Text("距離を計算")
+                                                .frame(maxWidth: .infinity, minHeight: 50)
+                                                .background(
+                                                    LinearGradient(
+                                                        colors: [Color.blue, Color.purple],
+                                                        startPoint: .leading,
+                                                        endPoint: .trailing
+                                                    )
+                                                )
+                                                .foregroundColor(.white)
+                                                .cornerRadius(15)
+                                        }
+                                        
+                                        
+                                        // Picker
+                                        Picker("移動手段", selection: $selecttransportation) {
+                                            Text("徒歩").tag("徒歩")
+                                            Text("電車・バス").tag("電車・バス")
+                                            Text("自動車").tag("自動車")
+                                        }
+                                        .pickerStyle(.segmented)
+                                        
+                                        
+                                        // 経路案内
+                                        Button("マップで開く") {
+                                            let mapItem = MKMapItem(
+                                                placemark: MKPlacemark(coordinate: targetdestination)
+                                            )
+                                            mapItem.name = shopname
+                                            mapItem.openInMaps(launchOptions: [
+                                                MKLaunchOptionsDirectionsModeKey:
+                                                    MKLaunchOptionsDirectionsModeWalking
+                                            ])
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: 50)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 15)
+                                                .stroke(Color.blue, lineWidth: 2)
+                                        )
+                                    }
+                                    
+                                    
+                                    Divider()
+                                    
+                                    
+                                    // ===== 訪問 =====
+                                    if !isvisititem {
+                                        Button("訪問する") {
+                                            isvisitalert = true
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: 50)
+                                        .background(Color.orange)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(15)
+                                        
+                                    } else {
+                                        Button("訪問を削除") {
+                                            if let vid = visitid {
+                                                delete(vid: vid)
+                                                isvisititem = false
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, minHeight: 50)
+                                        .background(Color.red)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(15)
+                                    }
+                                    
+                                    
+                                    // ===== 営業時間 =====
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Button(action: {
+                                            withAnimation {
+                                                isTime.toggle()
+                                            }
+                                        }) {
+                                            HStack {
+                                                Text("営業時間")
+                                                Spacer()
+                                                Image(systemName: "chevron.down")
+                                                    .rotationEffect(.degrees(isTime ? 180 : 0))
+                                            }
+                                        }
+                                        
+                                        if isTime {
+                                            ForEach(selectshopregularhours, id: \.self) { item in
+                                                Text(item)
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.gray)
+                                            }
+                                        }
+                                    }
+                                    
+                                }
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(25)
+                            }
+                        }
+                        .frame(height: 600)
+                    }
+                    
+                    
+                    // Realmロード
+                    .onAppear {
+                        if let vid = visitid {
+                            do {
+                                let realm = try Realm()
+                                
+                                if let obj = realm.object(
+                                    ofType: VRamenDatabase.self,
+                                    forPrimaryKey: vid
+                                ) {
+                                    selectevaluate = obj.evaluate
+                                    selectimpress = obj.isimpress
+                                }
+                                
+                            } catch {}
+                        }
+                    }
+                }
+                .zIndex(1)
+            }
