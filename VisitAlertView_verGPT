@@ -1,0 +1,150 @@
+struct VisitAlert: View {//ver3
+    @Binding var isimpress: String
+    @Binding var evaluate: Double
+    @Binding var isvisitalert: Bool
+    @Binding var genre: RamenGenre   // ←追加
+    
+    var valuelist = [0.0,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0]
+    var onSave: () -> Void
+    
+    var body: some View {
+        ScrollView{
+            VStack(spacing: 18) {
+                
+                // ===== ヘッダー =====
+                HStack {
+                    Text("レビューを書く")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Button {
+                        isvisitalert = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .padding(8)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+                }
+                
+                // ===== 評価 =====
+                VStack(spacing: 10) {
+                    Text("あなたの評価")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                        
+                        Text("\(evaluate, specifier: "%.1f")")
+                            .font(.title3)
+                            .bold()
+                    }
+                    
+                    Picker("", selection: $evaluate) {
+                        ForEach(valuelist, id: \.self) { value in
+                            Text(String(value)).tag(value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                // ===== ジャンル（追加） =====
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ジャンル")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 8) {
+                        
+                        ForEach(RamenGenre.allCases, id: \.self) { item in
+                            Button {
+                                genre = item
+                            } label: {
+                                Text(item.rawValue)
+                                    .font(.caption)
+                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity)
+                                    .background(
+                                        Group {
+                                            if genre == item {
+                                                LinearGradient(
+                                                    colors: [Color.orange, Color.red],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            } else {
+                                                Color.gray.opacity(0.15)
+                                            }
+                                        }
+                                    )
+                                    .foregroundColor(genre == item ? .white : .primary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                    }
+                }
+                
+                // ===== コメント =====
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("感想")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    ZStack(alignment: .topLeading) {
+                        if isimpress.isEmpty {
+                            Text("美味しさや雰囲気などを書こう...")
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding(10)
+                        }
+                        
+                        TextEditor(text: $isimpress)
+                            .frame(height: 120)
+                            .padding(6)
+                    }
+                    .background(Color.gray.opacity(0.08))
+                    .cornerRadius(12)
+                }
+                
+                // ===== ボタン =====
+                HStack(spacing: 12) {
+                    
+                    Button("キャンセル") {
+                        isvisitalert = false
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Color.gray.opacity(0.15))
+                    .cornerRadius(12)
+                    
+                    Button(action: {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        onSave()
+                        isvisitalert = false
+                    }) {
+                        Text("保存")
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.orange, Color.red],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .padding(.horizontal, 12)
+        .transition(.scale)
+    }
+}
