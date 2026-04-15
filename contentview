@@ -292,12 +292,18 @@ struct ContentView: View {
     
     @State private var searchVersion = 0
     
+    
+    @State var selvramendata_latitude = 0.0
+    @State var selvramendata_longitude = 0.0
+    
+    
+    @State var isvisitanalize = false
   
     var body: some View {//bodyが変化すると関係ないとこまで再計算される だからvarも計算し直し
         
         //if let region = locationManager.region{//アンラップした変数はただのローカル変数でありそれ自身の値をState変数(Binding)にはできない flagとしては使えるのかな？
         //でもrealmswiftから撮ってくるときunlap表示してたような？ 少なくともBinding変数には使えない
-        ZStack(alignment:.bottom){
+        ZStack(alignment: .top){
             
             /*
              Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: Ramendata.shops + (selectedShop.map{[$0]} ?? [])) //Mapはviewプロトコル showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
@@ -392,102 +398,122 @@ struct ContentView: View {
                         return shop
                     }
             }*/
-            
-            
-            
-            
-            
-            
-            Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: displayShops) //Mapはviewプロトコル  displayShopsはもう先にregularHoursがないものは間引いている気がする  こうやって間引かないと　ない時にエラーになる shop showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
-            //shopname = shop.name
-            {shop in
-                //ForEach(Ramendata.shops){shop in
-                
-                
-                
-                
-                
-                
-                //guard let regularhours = shop.regularHours else{return} 何もない場合にもViewを返さないといけないから returnはダメ
-                //if let regularhours = shop.regularHours{
-                MapAnnotation(coordinate: shop.coordinate) {
-                    RamenAnnotation(
-                        rating: shop.rating,
-                        name: shop.name,
-                        isstate: shop.isOpenNow,
-                        isTap: $isTap,
-                        shopname: $shopname,
-                        
-                        shopregularhours:shop.regularHours!,//間引いてあるから問題なく使える
-                        selectshopregularhours:$selectshopregularhours,
-                        
-                        targetdestination: $targetdestination,
-                        destination: shop.coordinate,
-                        selectrating:$selectrating,
-                        selectshopstate: $selectshopstate,
-                        isvisited:shop.isvisited,
-                        isvisititem:$isvisititem,
-                        
-                        visitid:$visitid,
-                        visitedid:shop.vid//空かもしれんね
-                    )
+ 
+                Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: displayShops) //Mapはviewプロトコル  displayShopsはもう先にregularHoursがないものは間引いている気がする  こうやって間引かないと　ない時にエラーになる shop showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
+                //shopname = shop.name
+                {shop in
+                    //ForEach(Ramendata.shops){shop in
+                    
+                    
+                    
+                    
+                    
+                    
+                    //guard let regularhours = shop.regularHours else{return} 何もない場合にもViewを返さないといけないから returnはダメ
+                    //if let regularhours = shop.regularHours{
+                    MapAnnotation(coordinate: shop.coordinate) {
+                        RamenAnnotation(
+                            rating: shop.rating,
+                            name: shop.name,
+                            isstate: shop.isOpenNow,
+                            isTap: $isTap,
+                            shopname: $shopname,
+                            
+                            shopregularhours:shop.regularHours!,//間引いてあるから問題なく使える
+                            selectshopregularhours:$selectshopregularhours,
+                            
+                            targetdestination: $targetdestination,
+                            destination: shop.coordinate,
+                            selectrating:$selectrating,
+                            selectshopstate: $selectshopstate,
+                            isvisited:shop.isvisited,
+                            isvisititem:$isvisititem,
+                            
+                            visitid:$visitid,
+                            visitedid:shop.vid//空かもしれんね
+                        )
+                    }
+                    //範囲に対して直接keyアクセスはできないから両方を丸めてアクセス O(NM) => O(N)
+                    //毎回毎回更新するのが本当にうざいから必要な時だけにしたい　varがダメかも
+                    
+                    
+                    
+                    
+                    
+                    
                 }
-                //範囲に対して直接keyアクセスはできないから両方を丸めてアクセス O(NM) => O(N)
-                //毎回毎回更新するのが本当にうざいから必要な時だけにしたい　varがダメかも
+                .ignoresSafeArea()
                 
                 
                 
                 
-                /* MapAnnotation(coordinate: locationManager.region.center) {
-                 Circle()
-                 .fill(Color.blue)
-                 .frame(width: 20, height: 20)
-                 .overlay(
-                 Circle().stroke(Color.white, lineWidth: 3)
-                 )
-                 }*/
-                
-                // }
-                // else{
-                //     EmptyView()
-                // }
+               
                 
                 
-                
-                
-            }
-            
-            
-            
-            
-            
-            
-            
-            .allowsHitTesting(!isSearching)//検索中はMap操作をfalseにする
-            .safeAreaInset(edge: .top) {
-                TextField("　ラーメン屋を検索",text:$searchtext)
-                  //  .focused($isSearchFocused)
-                
-                    .frame(width:360,height:60)
+                .allowsHitTesting(!isSearching)//検索中はMap操作をfalseにする
+               // .safeAreaInset(edge: .top) {
+                    HStack {
+                        
+                       Spacer()
+                            .frame(width:35)
+                        
+                        TextField("ラーメン屋を検索",text:$searchtext)
+                        //  .focused($isSearchFocused)
+                          //  .padding(.leading,30)
+                           
+                     
+                        Spacer()
+                            .frame(width:35)
+                        //.offset(y:-680)//無理くり合わせている
+                    }
+                    .frame(width:370,height:60)
                     .background(.white)
                     .cornerRadius(30)
-                //.offset(y:-680)//無理くり合わせている
-                
-                    .padding(.top, 20)
-                    .onSubmit {
-                        
-                        let text = searchtext.contains("ラーメン") ? searchtext:"\(searchtext)ラーメン"
-                        let center = locationManager.region.center
-                        
-                        isSearching = true//検索中
-                      // SearchRamendata.ramenshops.removeAll()//検索履歴を戻す => 戻ってそのまま検索した時に検索できないから そうしないと
-                        
-                       // SearchRamendata.fetch(latitude: center.latitude, longitude: center.longitude,text:text)//一応自分周りで検索をかける
-                        //まだ自分awaitとTaskを理解してないのかもしれない　awaitはなに　その処理をやっている時でも
-                        //contentviewは進んでいくの？　処理終わったら通知がいくみたいな？
-                        
-                        
-                        Task {
+                    
+            
+                    .overlay{
+                        HStack{
+                            Spacer()
+                                .frame(width:35)
+                            Button(action:{hideKeyboard()}){
+                                Image(systemName: "chevron.left")
+                            }
+                            .foregroundColor(.black)
+                            
+                            Spacer()
+                                .frame(width:310)
+                            
+                            Button(action:{searchtext = ""}){
+                                Image(systemName: "xmark")
+                                    .foregroundColor(.black)
+                                    .padding(5)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.black, lineWidth: 1)
+                                    )
+                            }
+                            
+                           Spacer()
+                                .frame(width:35)
+                            //Spacer()
+                            
+                        }
+                    }
+                       // .padding(.top, 20)
+                        .onSubmit {
+                            
+                            let text = searchtext.contains("ラーメン") ? searchtext:"\(searchtext)ラーメン"
+                            let center = locationManager.region.center
+                            
+                            isSearching = true//検索中
+                            // SearchRamendata.ramenshops.removeAll()//検索履歴を戻す => 戻ってそのまま検索した時に検索できないから そうしないと
+                            
+                            // SearchRamendata.fetch(latitude: center.latitude, longitude: center.longitude,text:text)//一応自分周りで検索をかける
+                            //まだ自分awaitとTaskを理解してないのかもしれない　awaitはなに　その処理をやっている時でも
+                            //contentviewは進んでいくの？　処理終わったら通知がいくみたいな？
+                            
+                          /*
+                            Task {
                                 await searchQueue.run {
                                     await SearchRamendata.fetch(
                                         latitude: center.latitude,
@@ -495,240 +521,50 @@ struct ContentView: View {
                                         text: text
                                     )
                                 }
-                            await MainActor.run {
+                                await MainActor.run {
                                     searchVersion += 1
                                 }
-                            }
-                        
-                        
-                       
-                    }
-                
-                /* .onChange(of:SearchRamendata.ramenshops[0]){
-                 if let ramenshops = SearchRamendata.ramenshops.first{//とりあえず今は検索結果の一番上
-                 //print(SearchRamendata)
-                 locationManager.region = MKCoordinateRegion(
-                 center: CLLocationCoordinate2D(latitude: ramenshops.coordinate.latitude, longitude: ramenshops.coordinate.longitude),
-                 span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                 )//regionの更新
-                 print(1)
-                 }
-                 isSearching = false//この場所においたら果たしてうまくいってるのだろうか？
-                 }*/
-                
-            }
-            
-            .onAppear(){ //画面が表示されたら一旦訪問ずみ店を検索
-                visitedShops = visitramendatabase.map{ramenshop in
-                    RamenShop(
-                        name:ramenshop.name,
-                        rating:ramenshop.rating,
-                        coordinate: CLLocationCoordinate2D(
-                            latitude: ramenshop.latitude, longitude: ramenshop.longitude
-                        ),
-                        isOpenNow: ramenshop.isOpenNow,
-                        regularHours:Array(ramenshop.regularHours),
-                        isvisited: true,//realmから引っ張ってきたものはTrue,
-                        vid:ramenshop.id
-                    )
-                }
-                
-                print(visitedShops)
-                //visitedShops = visitramendatabase.map(convert)
-            }
-            
-            
-            .onChange(of:Ramendata.shops.count) { _ in //一応変更されたら更新してるつもり 　範囲検索への対策
-                //範囲検索の内容が変化したら
-               
-                var shops = Ramendata.shops //これの問題としては、訪問済みボタンを押さないと絶対にマップ内のお店表示が変わらないこと  Ramendata.shopsの中身が変わっても追跡しない アイコンとして
-                
-                var okshops:[RamenShop] = [] //距離検索とか実装できない
-                
-                let visitedSet = Set(visitramendatabase.map {visit in  key_VShop(for: visit) })
-                 //はじめのタイミングではr
-                for shop in shops{//通常初期検索の中から
-                    
-                    if !visitedSet.contains(key_Shop(for: shop)){
-                        okshops.append(shop)//okなやつを追加する
-                    }
-                    
-                }
-                allShops = okshops //初期検索表示 visitとは選別 自動じゃなくて手動で
-                updateDisplayShops()
-                
-            }
-            
-            .onChange(of:visitramendatabase.count) { _ in //一応変更されたら更新してるつもり
-                //削除したらvramendatabaseから削除 + 元々入っているramendata.shopsから　表示するものを再計算　vramendataから消してそこに入っているなら　表示
-                //追加したらこれまた重複しないようにはなっている　ただ連続でやれない　　削除が特にバグかな？
-                
-                visitedShops = visitramendatabase.map { ramenshop in
-                    //let vidValue: ObjectId? = ramenshop.id//なぜか取得できないね
-                    
-                    RamenShop(
-                        name: ramenshop.name,
-                        rating: ramenshop.rating,
-                        coordinate: CLLocationCoordinate2D(
-                            latitude: ramenshop.latitude,
-                            longitude: ramenshop.longitude
-                        ),
-                        isOpenNow: ramenshop.isOpenNow,
-                        regularHours: Array(ramenshop.regularHours),
-                        isvisited: true,
-                        vid:ramenshop.id
-                    )
-                    
-                }//削除 => 追加はいける
-                
-                var shops = Ramendata.shops //これの問題としては、訪問済みボタンを押さないと絶対にマップ内のお店表示が変わらないこと  Ramendata.shopsの中身が変わっても追跡しない アイコンとして
-                
-                var okshops:[RamenShop] = [] //距離検索とか実装できない
-                
-                let visitedSet = Set(visitramendatabase.map {visit in  key_VShop(for: visit) })
-                 //はじめのタイミングではr
-                for shop in shops{//通常初期検索の中から
-                    
-                    if !visitedSet.contains(key_Shop(for: shop)){
-                        okshops.append(shop)//okなやつを追加する
-                    }
-                    
-                }
-                allShops = okshops //初期検索表示 visitとは選別 自動じゃなくて手動で
-                
-                updateDisplayShops() // ← これ追加
-            }
-           // .onChange(of: visitramendatabase.count) { _ in  より洗練された方法
-            //    visitedShops = visitramendatabase.map(convert)
-           // }
-            
-               
-               
-                
-            
-            
-            //.onChange(of:SearchRamendata.ramenshops.count){count in //countが0になった時に発火させてはいけないでしょ 何も入っていないリストが表示されることになるよ
-                //guard let first = SearchRamendata.ramenshops.first else{return} //これだと同じ件数の検索結果が発火しない
-                
-            .onChange(of:searchVersion){
-               // if count > 0{
-                    isSearchRamen = true//検索アイテムが入ったかどうか
-                    isSearching = false//この場所においたら果たしてうまくいってるのだろうか？
-                //}
-                //if let ramenshops = SearchRamendata.ramenshops.first{//とりあえず今は検索結果の一番上
-                //print(SearchRamendata)
-                // locationManager.region = MKCoordinateRegion(
-                //center: CLLocationCoordinate2D(latitude: first.coordinate.latitude, longitude: first.coordinate.longitude),
-                //span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                
-                //)//regionの更新
-                //selectedShop = first
-                
-                //print(1)
-                //if let shop = selectedShop{
-                // print("a")
-                // print(shop)
-                //}
-            }
-            
-            // else{
-            //    Text("取得中")
-            //  }
-            
-            
-            //scroll => region change => Binding Map変化 再構成 ただonchangeは起動しない  onchange起動するとrequest出すことになる　常に
-            
-            //今スクロールするたびにregionが変更されて、.onChangeが起動されて、検索をかけるわけではない!!  1度きりになっている　　メリットもデメリットもある　　常に追随するとデータ量がかかるから毎日ラーメンでは再計算がある
-            
-            //.onChange(of:locationManager.region) {region in// こういう二つ以上のフィールドの比較はできない
-            .onChange(of:locationManager.didSetInitialRegion)//こいつを起動したら現在地周辺を検索できる　経度が全く同じラインの地点が現在地だと東京から変化がなくonChangeが起動しないからラーメン屋が入らない
-            {done in //こいつをフラグにすることで位置情報が現在地に入ったら動くようにする　-> その周辺のラーメンを手に入れるようにする
-                guard done, !didFetch else { return }
-                didFetch = true
-                let center = locationManager.region.center
-                
-                
-                let radius: Double = 100 // 一旦ここで計算させて 多分ここだと一回かな？
-
-                let latDelta = radius / 111_000.0//距離と緯度
-                let lonDelta =  radius / (111_000.0 * cos(center.latitude * .pi / 180))//距離と経度
-
-                let minLat = center.latitude - latDelta
-                let maxLat = center.latitude + latDelta
-                let minLon = center.longitude - lonDelta
-                let maxLon = center.longitude + lonDelta
-                
-                
-                //if !ramendatabase.isEmpty{//入っているならrealmの走査
-                    //for ramendatab in ramendatabase{
-                     
-                  //この中でif min <= latitude <= maxlat and min <= logitude <= maxlog これだと全て一通り操作するから計算量が多いらしい
-                do{//realmに今の中心地点　半径100m 以内をkeyにdatabaseを取り出す
-                    let realm = try Realm()
-                    let results = realm.objects(RamenDatabase.self)
-                        .filter("latitude BETWEEN {%f,%f} AND longitude BETWEEN {%f,%f}",minLat,maxLat,minLon,maxLon)
-                    
-                    if results.isEmpty{//ないなら検索をかける
-                        Ramendata.fetch(
-                            latitude: center.latitude,
-                            longitude: center.longitude
-                        )
-                    }
-                    else{//入っているなら取り出す
-                        //resultsのデータを使う　複数あることは基本ないはずだから　.firstとかでとりだすか？
-                       
-                        print(results.first)
-                        
-                        
-                        
-                            if let result = results.first {//Realm => RamenDataに型変更
-
-                                Ramendata.shops = result.ramenshops.map { shop in //すげえ違和感ある書き方
-                                    RamenShop(
-                                        name: shop.name,
-                                        rating: shop.rating,
-                                        coordinate: CLLocationCoordinate2D(
-                                            latitude: shop.latitude,
-                                            longitude: shop.longitude
-                                        ),
-                                        isOpenNow: shop.isOpenNow,
-                                        regularHours: Array(shop.regularHours),
-                                        isvisited:shop.isvisited,
-                                        vid:nil
+                            }*/
+                            Task {
+                                await searchQueue.run {
+                                    await SearchRamendata.fetch(
+                                        latitude: center.latitude,
+                                        longitude: center.longitude,
+                                        text: text
                                     )
                                 }
-
+                                
+                            
+                                // ここで直接UI更新
+                                await MainActor.run {
+                                    isSearchRamen = true
+                                    updateDisplayShops()
+                                }
                             }
                             
-                        }
+                            
+                            
+                       // }
                     
-                    
-                }catch{print("")}
-                
-                
-                    
-                //print(Ramendata)
-                    //addRamenshop()//ramendataがない時どうなるんだろう？
-                    
-                    //print(Ramendata)
-                    
-                  /* if !ramendatabase.isEmpty{
-                      for ramendatab in ramendatabase{
-                           print(ramendatab.ramenshops)
+                    /* .onChange(of:SearchRamendata.ramenshops[0]){
+                     if let ramenshops = SearchRamendata.ramenshops.first{//とりあえず今は検索結果の一番上
+                     //print(SearchRamendata)
+                     locationManager.region = MKCoordinateRegion(
+                     center: CLLocationCoordinate2D(latitude: ramenshops.coordinate.latitude, longitude: ramenshops.coordinate.longitude),
+                     span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                     )//regionの更新
+                     print(1)
                      }
-                }*/
-                
-            }
-            /*
-            Color.clear
-                    .contentShape(Rectangle())
-                    .opacity(isSearchFocused ? 1 : 0)
-                    .allowsHitTesting(isSearchFocused)
-                    .onTapGesture {
-                        isSearchFocused = false
-                    }
+                     isSearching = false//この場所においたら果たしてうまくいってるのだろうか？
+                     }*/
                     
-            */
+                }
+            
+            
+           
+       
+                    
+            
             
             VStack{
                 Spacer()
@@ -790,11 +626,22 @@ struct ContentView: View {
                         print("うんち")
                     }){
                         Text("訪問一覧")
-                        if visitlistflag{
-                            VisitList(visitlistflag:$visitlistflag)
-                                .frame(width:300)
-                            
-                        }
+                        
+                    }
+                         
+                       // }
+
+                          
+                    }
+                
+                HStack{
+                    Spacer()
+                    Button(action:{//ダブルタップ対応
+                        isvisitanalize.toggle()
+                        print("うんち")
+                    }){
+                        Text("分析")
+                        
                     }
                          
                        // }
@@ -804,10 +651,53 @@ struct ContentView: View {
                 
                 
                 
+                
                 Spacer()
                 
             }
             
+            
+            if isvisitanalize{
+                ZStack {//上にもう一枚重ねる
+                    
+                    // 背景ぼかし  背景レイヤー①
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            isvisitanalize = false
+                        }
+                    VStack{
+                        
+                        VisitAnalizeView(isvisitanalize: $isvisitanalize)
+                            
+                    }
+                }
+                
+            }
+            
+            if visitlistflag{
+                ZStack {//上にもう一枚重ねる
+                    
+                    // 背景ぼかし  背景レイヤー①
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            visitlistflag = false
+                        }
+                    VStack{
+                        
+                        VisitList(visitlistflag:$visitlistflag, selvramendata_latitude: $selvramendata_latitude, selvramendata_longitude: $selvramendata_longitude,
+                                  onChoice:{
+                            moveTo(latitude:selvramendata_latitude,longitude:selvramendata_longitude)//選択したアイテムへマップを移動
+                            
+                            visitlistflag = false//移動したら閉じる
+                            
+                            
+                        })
+                            
+                    }
+                }
+            }
             
             if isvisitalert{
                 ZStack {//上にもう一枚重ねる
@@ -865,6 +755,8 @@ struct ContentView: View {
                                     //     visitramendata.address = area
                                     // }//非同期の中でRealmを触ると怒られる  completionがメインスレッドではない可能性があって、その中でいじるのはダメ
                                       
+                                    visitramendata.genre = genre.rawValue
+                                    
                                     try realm.write{
                                         realm.add(visitramendata)
                                     }
@@ -905,35 +797,37 @@ struct ContentView: View {
                 
                 
             }
-            
-            if isSearchRamen{
-                VStack{
-                    List{
-                        ForEach(SearchRamendata.ramenshops){shop in
-                            Button(action:{
-                                //isSearchRamen = false//それぞれのアイテムにボタンを設置している
-                                
-                                DispatchQueue.main.async {
-                                    selectedShop = shop //検索したものがたまらないようにはなっている
-                                    //locationManager.region = MKCoordinateRegion(
-                                      //  center: CLLocationCoordinate2D(latitude: shop.coordinate.latitude, longitude: shop.coordinate.longitude),
-                                      //  span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        /*
+        if isSearchRamen{
+                        VStack{
+                            List{
+                                ForEach(SearchRamendata.ramenshops){shop in
+                                    Button(action:{
+                                        isSearchRamen = false//それぞれのアイテムにボタンを設置している
                                         
-                                    //)//regionの更新
-                                    
-                                   // updateDisplayShops() // ← これ追加
-                                    isSearchRamen = false
+                                        DispatchQueue.main.async {
+                                            selectedShop = shop //検索したものがたまらないようにはなっている
+                                            locationManager.region = MKCoordinateRegion(
+                                              center: CLLocationCoordinate2D(latitude: shop.coordinate.latitude, longitude: shop.coordinate.longitude),
+                                              span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                            
+                                            )//regionの更新
+                                            
+                                            // updateDisplayShops() // ← これ追加
+                                            isSearchRamen = false
+                                        }
+                                        
+                                    }){//押したら閉じる
+                                        Text(shop.name)
+                                    }
                                 }
                                 
-                            }){//押したら閉じる
-                                Text(shop.name)
+                                
                             }
                         }
-                    
-                        
                     }
-                }
-            }
+                
+           */
             if isTap {
                 ZStack(alignment:.bottom){
                     
@@ -1666,6 +1560,245 @@ struct ContentView: View {
             }*/
             
         }
+        .onAppear(){ //画面が表示されたら一旦訪問ずみ店を検索
+            visitedShops = visitramendatabase.map{ramenshop in
+                RamenShop(
+                    name:ramenshop.name,
+                    rating:ramenshop.rating,
+                    coordinate: CLLocationCoordinate2D(
+                        latitude: ramenshop.latitude, longitude: ramenshop.longitude
+                    ),
+                    isOpenNow: ramenshop.isOpenNow,
+                    regularHours:Array(ramenshop.regularHours),
+                    isvisited: true,//realmから引っ張ってきたものはTrue,
+                    vid:ramenshop.id
+                )
+            }
+            
+            print(visitedShops)
+            //visitedShops = visitramendatabase.map(convert)
+        }
+        
+            .onChange(of:Ramendata.shops.count) { _ in //一応変更されたら更新してるつもり 　範囲検索への対策
+                //範囲検索の内容が変化したら
+               
+                var shops = Ramendata.shops //これの問題としては、訪問済みボタンを押さないと絶対にマップ内のお店表示が変わらないこと  Ramendata.shopsの中身が変わっても追跡しない アイコンとして
+                
+                var okshops:[RamenShop] = [] //距離検索とか実装できない
+                
+                let visitedSet = Set(visitramendatabase.map {visit in  key_VShop(for: visit) })
+                 //はじめのタイミングではr
+                for shop in shops{//通常初期検索の中から
+                    
+                    if !visitedSet.contains(key_Shop(for: shop)){
+                        okshops.append(shop)//okなやつを追加する
+                    }
+                    
+                }
+                allShops = okshops //初期検索表示 visitとは選別 自動じゃなくて手動で
+                updateDisplayShops()
+                
+            }
+            
+            .onChange(of:visitramendatabase.count) { _ in //一応変更されたら更新してるつもり
+                //削除したらvramendatabaseから削除 + 元々入っているramendata.shopsから　表示するものを再計算　vramendataから消してそこに入っているなら　表示
+                //追加したらこれまた重複しないようにはなっている　ただ連続でやれない　　削除が特にバグかな？
+                
+                visitedShops = visitramendatabase.map { ramenshop in
+                    //let vidValue: ObjectId? = ramenshop.id//なぜか取得できないね
+                    
+                    RamenShop(
+                        name: ramenshop.name,
+                        rating: ramenshop.rating,
+                        coordinate: CLLocationCoordinate2D(
+                            latitude: ramenshop.latitude,
+                            longitude: ramenshop.longitude
+                        ),
+                        isOpenNow: ramenshop.isOpenNow,
+                        regularHours: Array(ramenshop.regularHours),
+                        isvisited: true,
+                        vid:ramenshop.id
+                    )
+                    
+                }//削除 => 追加はいける
+                
+                var shops = Ramendata.shops //これの問題としては、訪問済みボタンを押さないと絶対にマップ内のお店表示が変わらないこと  Ramendata.shopsの中身が変わっても追跡しない アイコンとして
+                
+                var okshops:[RamenShop] = [] //距離検索とか実装できない
+                
+                let visitedSet = Set(visitramendatabase.map {visit in  key_VShop(for: visit) })
+                 //はじめのタイミングではr
+                for shop in shops{//通常初期検索の中から
+                    
+                    if !visitedSet.contains(key_Shop(for: shop)){
+                        okshops.append(shop)//okなやつを追加する
+                    }
+                    
+                }
+                allShops = okshops //初期検索表示 visitとは選別 自動じゃなくて手動で
+                
+                updateDisplayShops() // ← これ追加
+            }
+           // .onChange(of: visitramendatabase.count) { _ in  より洗練された方法
+            //    visitedShops = visitramendatabase.map(convert)
+           // }
+            
+               
+               
+                
+            
+            
+            //.onChange(of:SearchRamendata.ramenshops.count){count in //countが0になった時に発火させてはいけないでしょ 何も入っていないリストが表示されることになるよ
+                //guard let first = SearchRamendata.ramenshops.first else{return} //これだと同じ件数の検索結果が発火しない
+                
+            .onChange(of:searchVersion){
+               // if count > 0{
+                isSearchRamen = true//検索アイテムが入ったかどうか
+                    isSearching = false//この場所においたら果たしてうまくいってるのだろうか？
+                //}
+                /*
+                if let ramenshops = SearchRamendata.ramenshops.first{//とりあえず今は検索結果の一番上
+                    print(SearchRamendata)
+                    /locationManager.region = MKCoordinateRegion(
+                        center: CLLocationCoordinate2D(latitude: first.coordinate.latitude, longitude: first.coordinate.longitude),
+                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        
+                    )//regionの更新
+                    
+                }
+                 */
+                //selectedShop = first
+                
+                //print(1)
+                //if let shop = selectedShop{
+                // print("a")
+                // print(shop)
+                //}
+            }
+            
+            // else{
+            //    Text("取得中")
+            //  }
+            .sheet(isPresented: $isSearchRamen) {
+                VStack{
+                    List{
+                        ForEach(SearchRamendata.ramenshops){shop in
+                            Button(action:{
+                                //isSearchRamen = false//それぞれのアイテムにボタンを設置している
+                                
+                                isSearching = false
+                                
+                                DispatchQueue.main.async {
+                                    selectedShop = shop //検索したものがたまらないようにはなっている
+                                    locationManager.region = MKCoordinateRegion(
+                                      center: CLLocationCoordinate2D(latitude: shop.coordinate.latitude, longitude: shop.coordinate.longitude),
+                                      span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                    
+                                    )//regionの更新
+                                    
+                                    // updateDisplayShops() // ← これ追加
+                                    
+                                    
+                                    isSearchRamen = false
+                                }
+                                
+                            }){//押したら閉じる
+                                Text(shop.name)
+                            }
+                        }
+                        
+                        
+                    }
+                }
+                
+            }
+            
+            //scroll => region change => Binding Map変化 再構成 ただonchangeは起動しない  onchange起動するとrequest出すことになる　常に
+            
+            //今スクロールするたびにregionが変更されて、.onChangeが起動されて、検索をかけるわけではない!!  1度きりになっている　　メリットもデメリットもある　　常に追随するとデータ量がかかるから毎日ラーメンでは再計算がある
+            
+            //.onChange(of:locationManager.region) {region in// こういう二つ以上のフィールドの比較はできない
+            .onChange(of:locationManager.didSetInitialRegion)//こいつを起動したら現在地周辺を検索できる　経度が全く同じラインの地点が現在地だと東京から変化がなくonChangeが起動しないからラーメン屋が入らない
+            {done in //こいつをフラグにすることで位置情報が現在地に入ったら動くようにする　-> その周辺のラーメンを手に入れるようにする
+                guard done, !didFetch else { return }
+                didFetch = true
+                let center = locationManager.region.center
+                
+                
+                let radius: Double = 100 // 一旦ここで計算させて 多分ここだと一回かな？
+
+                let latDelta = radius / 111_000.0//距離と緯度
+                let lonDelta =  radius / (111_000.0 * cos(center.latitude * .pi / 180))//距離と経度
+
+                let minLat = center.latitude - latDelta
+                let maxLat = center.latitude + latDelta
+                let minLon = center.longitude - lonDelta
+                let maxLon = center.longitude + lonDelta
+                
+                
+                //if !ramendatabase.isEmpty{//入っているならrealmの走査
+                    //for ramendatab in ramendatabase{
+                     
+                  //この中でif min <= latitude <= maxlat and min <= logitude <= maxlog これだと全て一通り操作するから計算量が多いらしい
+                do{//realmに今の中心地点　半径100m 以内をkeyにdatabaseを取り出す
+                    let realm = try Realm()
+                    let results = realm.objects(RamenDatabase.self)
+                        .filter("latitude BETWEEN {%f,%f} AND longitude BETWEEN {%f,%f}",minLat,maxLat,minLon,maxLon)
+                    
+                    if results.isEmpty{//ないなら検索をかける
+                        Ramendata.fetch(
+                            latitude: center.latitude,
+                            longitude: center.longitude
+                        )
+                    }
+                    else{//入っているなら取り出す
+                        //resultsのデータを使う　複数あることは基本ないはずだから　.firstとかでとりだすか？
+                       
+                        print(results.first)
+                        
+                        
+                        
+                            if let result = results.first {//Realm => RamenDataに型変更
+
+                                Ramendata.shops = result.ramenshops.map { shop in //すげえ違和感ある書き方
+                                    RamenShop(
+                                        name: shop.name,
+                                        rating: shop.rating,
+                                        coordinate: CLLocationCoordinate2D(
+                                            latitude: shop.latitude,
+                                            longitude: shop.longitude
+                                        ),
+                                        isOpenNow: shop.isOpenNow,
+                                        regularHours: Array(shop.regularHours),
+                                        isvisited:shop.isvisited,
+                                        vid:nil
+                                    )
+                                }
+
+                            }
+                            
+                        }
+                    
+                    
+                }catch{print("")}
+                
+                
+                    
+                //print(Ramendata)
+                    //addRamenshop()//ramendataがない時どうなるんだろう？
+                    
+                    //print(Ramendata)
+                    
+                  /* if !ramendatabase.isEmpty{
+                      for ramendatab in ramendatabase{
+                           print(ramendatab.ramenshops)
+                     }
+                }*/
+                
+            }
+        
+       
+             
         }
     
     @MainActor func updateDisplayShops() {
@@ -1690,7 +1823,16 @@ struct ContentView: View {
             let lon = (shop.longitude * 10000).rounded() / 10000
             return "\(shop.name)_\(lat)_\(lon)"
         }
-    
+
+    func moveTo(latitude:Double,longitude:Double) {//ここでMapに触る　関数に分解した方がわかりやすい これはとにかく座標を写すやつ
+        locationManager.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: latitude,
+                longitude: longitude
+            ),
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+    }
     
 func convert(_ ramenshop: VRamenDatabase) -> RamenShop {
     
@@ -2019,21 +2161,52 @@ struct VisitAlert: View {//ver2
 }*/
 
 
-
-struct VisitList: View {//ver3
+/*
+struct VisitList: View {//ver_me
     
     var valuelist = [0.0,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0]
     @Binding var visitlistflag:Bool
     
-    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase//DB用の隠れ窓 窓に対して代入とか意味不明
     
     let dateFormatter = DateFormatter()
     
+    @Binding var selvramendata_latitude:Double//選択したデータの緯度経度
+    @Binding var selvramendata_longitude:Double
+    
+    var onChoice: () -> Void
+    
+    @State var isAscending = false
+    
+    
+    var sortedList: [VRamenDatabase] {//このcomputed変数は中に入れるか外に入れるか迷う  複数行ならreturn 必須　一行ならいらんかも?
+        
+        if isAscending{
+            return visitramendatabase.sorted {
+                isAscending ? $0.evaluate < $1.evaluate : $0.evaluate > $1.evaluate
+            }
+        }
+        else{
+            return Array(visitramendatabase)
+        }
+    }//とにかく一つ一つ取り出してソートする　O(NlogN) 一見大変そうだけど　今回そもそもView再構成が起こりづらいし重くない
+    
+    
+    
     var body: some View {
         VStack{
+            Button("昇順"){
+                isAscending.toggle()
+            }
+            
             List{
-                ForEach(visitramendatabase){visitramen in
-                    Button(action:{}){
+                ForEach(sortedList){visitramen in
+                    Button(action:{//同期処理は順番通りに行ってくれる
+                        selvramendata_latitude = visitramen.latitude
+                        selvramendata_longitude = visitramen.longitude
+                        
+                        onChoice()
+                    }){
                         VStack{
                             
                             HStack(spacing: 6){
@@ -2058,7 +2231,8 @@ struct VisitList: View {//ver3
                         }
                         
                     }
-                    Text("うんち")
+                    
+           
                 }
             }
             
@@ -2068,10 +2242,13 @@ struct VisitList: View {//ver3
             Button("戻る"){
                 visitlistflag = false
             }
+            .padding(12)
             
         }
-        .frame(width:360,height:350)
+        .frame(width:360,height:440)
         .background(.white)
+        .cornerRadius(20)
+        
         .onAppear(){
             print(visitramendatabase)
             print(1)
@@ -2087,7 +2264,586 @@ struct VisitList: View {//ver3
 
     
 }
+*/
 
+
+
+struct VisitAnalizeView: View {//vergpt
+    
+    
+    @Binding var isvisitanalize:Bool
+    let dateFormatter = DateFormatter()
+   
+    @State var visitcount = 0 //総訪問数
+  
+    @State var selectgenre:String = ""
+    
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    
+    var sortedList: [VRamenDatabase]{ //visitramendatabaseは[]ではなく窓
+        let filtered = Array(visitramendatabase//RealmObject .filter{条件} で可能　or dbを直接触っても可能
+           // .filter {item in
+           //     selectGenres.isEmpty || selectGenres.contains(item.genre)
+            .filter{item in
+                selectgenre == item.genre
+            }
+                             )
+        
+            return filtered.sorted { $0.evaluate > $1.evaluate }
+        
+            
+    }
+    
+    
+    var body: some View {
+        ZStack{
+            Color.white
+            VStack(spacing:10){
+                Text("訪問データ")
+                
+                LazyVGrid(columns: [//Viewにたて3つで並べる　Grid設定
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())//アイテムをForEachで並べるだけで勝手に3個ずつになる
+                                  ], spacing: 8) {
+                                       
+                                       ForEach(RamenGenre.allCases, id: \.self) { item in //.allCases でenum列挙
+                                           Button {
+                                               selectgenre = item.rawValue
+                                           } label: {
+                                               Text(item.rawValue)//.enumの表示文字 変数 -> 文字String
+                                               
+                                                   .font(.caption)//ここから
+                                                   .padding(.vertical, 8)
+                                                   .frame(maxWidth: .infinity)//横幅を自由に任せる
+                                                   .background(
+                                                    Group {//方が異なるもものを同じっぽく扱わせる  LinearGradient  Color
+                                                        if selectgenre == item.rawValue {//それが選ばれているジャンルなら
+                                                            LinearGradient(//グラデーション背景
+                                                                colors: [Color.orange, Color.red],
+                                                                startPoint: .leading,
+                                                                endPoint: .trailing
+                                                            )
+                                                        } else {
+                                                            Color.gray.opacity(0.15)//無色
+                                                        }
+                                                    }
+                                                   )
+                                                   .foregroundColor(selectgenre == item.rawValue ? .white : .primary) //ここまで装飾
+                                                   .cornerRadius(10)
+                                           }
+                                       }
+                                   }
+                
+                List{
+                    ForEach(sortedList){visitramen in
+                        Button(action:{
+                            
+                        }){
+                            
+                            HStack{
+                                VStack(alignment:.leading, spacing:6){
+                                    
+                                    // 上段
+                                    HStack(spacing: 6){
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.yellow)
+                                        
+                                        Text(String(format: "%.1f", visitramen.evaluate))
+                                            .font(.subheadline)
+                                            .bold()
+                                        
+                                        Text(visitramen.name)
+                                            .font(.body)
+                                            .lineLimit(1)
+                                        
+                                        
+                                        
+                                        Spacer()
+                                        
+                                    }
+                                    
+                                    HStack{
+                                        // 下段
+                                        Spacer()
+                                            .frame(width:15)//気持ち調整
+                                        
+                                        Text(dateFormatter.string(from:visitramen.visitAt))
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        
+                                        Spacer()
+                                            .frame(width:30)//気持ち調整
+                                        
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "tag.fill")
+                                            Text(visitramen.genre)
+                                        }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        //.background(genreColor(genre: visitramen.genre))
+                                        .cornerRadius(8)
+                                        
+                                        
+                                        Spacer()
+                                        
+                                    }
+                                    
+                                }
+                            }
+                            .frame(maxWidth:.infinity)//これがないとアイテム分で止まっちゃうかも？
+                            
+                            
+                            .padding(10)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 3)
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+                .listStyle(.plain)
+                
+                Spacer()
+                
+                
+                
+                
+            }
+            }
+        .onAppear(){
+            
+            dateFormatter.locale = Locale(identifier: "ja_JP")
+            dateFormatter.dateFormat = "yyyy年MM月dd日"
+            
+        }
+        
+        }
+        
+   
+}
+
+
+
+
+struct VisitList: View {//vergpt
+    
+    var valuelist = [0.0,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0]
+    @Binding var visitlistflag:Bool
+    
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    
+    let dateFormatter = DateFormatter()
+    
+    @Binding var selvramendata_latitude:Double
+    @Binding var selvramendata_longitude:Double
+    
+    var onChoice: () -> Void
+    
+    @State var isAscending = false
+    
+    @State var selectGenres:Set<String> = Set()
+    
+    @State var isselectgenreview = false
+    
+    
+    var sortedList: [VRamenDatabase]{ //visitramendatabaseは[]ではなく窓
+        let filtered = Array(visitramendatabase//RealmObject .filter{条件} で可能　or dbを直接触っても可能
+            .filter {item in
+                selectGenres.isEmpty || selectGenres.contains(item.genre)
+            }
+                             )
+                             
+            
+        if isAscending{
+            return filtered
+        }
+        else{
+            
+                return filtered.sorted { $0.evaluate > $1.evaluate }
+                    }
+               
+            
+                
+            
+    }
+   
+    
+    
+  
+    
+    
+    var body: some View {
+        ZStack{
+            VStack{
+                Spacer()
+                    .frame(height:8)
+                // ===== 上部バー =====
+                HStack {
+                    Text("　訪問一覧")
+                        .font(.headline)
+                    
+                    Spacer()
+                        .frame(width:220)
+                    
+                    Button(action:{
+                        isAscending.toggle()
+                    }){
+                        HStack(spacing:4){
+                            Image(systemName: isAscending ? "arrow.up" : "arrow.down")
+                            Text("評価")
+                        }
+                        .font(.caption)
+                        .padding(.horizontal,10)
+                        .padding(.vertical,6)
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(10)
+                    }
+                    Spacer()
+                }
+              
+                HStack{
+                    Spacer()
+                        .frame(width:10)
+                    Button(action:{
+                        selectGenres.removeAll()
+                        
+                        isselectgenreview.toggle()
+                        
+                    }){
+                        Text("フィルター")
+                            .font(.caption)
+                            .padding(.horizontal,10)
+                            .padding(.vertical,6)
+                            .background(Color.gray.opacity(0.15))
+                            .cornerRadius(10)
+                    }
+                    Spacer()
+                }
+                .padding(.bottom,5)
+                
+                
+                
+                // ===== リスト =====
+                List{
+                    ForEach(sortedList){visitramen in
+                        Button(action:{
+                            selvramendata_latitude = visitramen.latitude
+                            selvramendata_longitude = visitramen.longitude
+                            onChoice()
+                        }){
+                            
+                            HStack{
+                                VStack(alignment:.leading, spacing:6){
+                                    
+                                    // 上段
+                                    HStack(spacing: 6){
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.yellow)
+                                        
+                                        Text(String(format: "%.1f", visitramen.evaluate))
+                                            .font(.subheadline)
+                                            .bold()
+                                        
+                                        Text(visitramen.name)
+                                            .font(.body)
+                                            .lineLimit(1)
+                                        
+                                        
+                                        
+                                        Spacer()
+                                        
+                                    }
+                                    
+                                    HStack{
+                                        // 下段
+                                        Spacer()
+                                            .frame(width:15)//気持ち調整
+                                        
+                                        Text(dateFormatter.string(from:visitramen.visitAt))
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        
+                                        Spacer()
+                                            .frame(width:30)//気持ち調整
+                                        
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "tag.fill")
+                                            Text(visitramen.genre)
+                                        }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(genreColor(genre: visitramen.genre))
+                                        .cornerRadius(8)
+                                        
+                                        
+                                        Spacer()
+                                        
+                                    }
+                                    
+                                }
+                            }
+                            .frame(maxWidth:.infinity)//これがないとアイテム分で止まっちゃうかも？
+                            
+                            
+                            .padding(10)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 3)
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+                .listStyle(.plain)
+                
+                
+                // ===== 戻るボタン =====
+                Button(action:{
+                    visitlistflag = false
+                }){
+                    Text("閉じる")
+                        .frame(maxWidth:.infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .padding(15)
+                
+            }
+            .frame(width:370,height:520)
+            .background(Color(UIColor.systemGroupedBackground))
+            .cornerRadius(20)
+            
+            .onAppear(){
+                dateFormatter.locale = Locale(identifier: "ja_JP")
+                dateFormatter.dateFormat = "yyyy年MM月dd日"
+                
+                print(visitramendatabase)
+                
+            }
+            
+            
+            if isselectgenreview{
+                SelectGenreView(isselectgenreview: $isselectgenreview, selectGenres: $selectGenres,
+                                onSave: {
+                   // sortedList =
+                })
+                
+            }
+        }
+        
+    }
+    
+    func genreColor(genre:String) -> Color{ //本当はcaseを感じにしたくないんだけど　enum RamenGenre型に String => 変換するのがパッと思いつかなかった 後で変更するかも
+        switch genre{
+        case "醤油":return .brown
+        case "味噌" : return .yellow
+        case "塩" : return .white
+        case "豚骨" : return .purple
+        case "家系" : return .red
+        case "二郎系" : return .yellow
+        case "つけ麺": return .blue
+        case "その他" : return .gray
+        
+        default : return .white
+            
+        }
+
+        
+    }
+}
+
+
+/*
+struct SelectGenreView: View {//選択 (trigger) ジャンルに追加 表示  これ分離しなくてもできるやん!!! こういう機能とかライブラリにできないかな？？
+    
+    @Binding var isselectgenreview:Bool //ビューに対する表示状態
+    @Binding var selectGenres:Set<String>//選択したジャンル
+    
+    var onSave: () -> Void
+    
+    
+    var body: some View {//
+        ZStack{
+            Color.white
+            VStack(spacing: 15) {//それぞれの項目が20ずつ空いている
+                Text("表示するラーメンのジャンルを選択")
+                    .font(.headline)
+                    .padding()
+                LazyVGrid(columns: [//Viewにたて3つで並べる　Grid設定
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())//アイテムをForEachで並べるだけで勝手に3個ずつになる
+                                   ], spacing: 8) {
+                                       ForEach(RamenGenre.allCases,id: \.self){item in  //擬似的なon offはtoggleを使わなくてもできる
+                                           Button(action:{
+                                               if selectGenres.contains(item.rawValue){
+                                                   selectGenres.remove(item.rawValue)
+                                               }
+                                               else{
+                                                   selectGenres.insert(item.rawValue)
+                                               }
+                                               
+                                           }){
+                                               Text(item.rawValue)
+                                                   .font(.caption)//ここから
+                                                   .padding(.vertical, 8)
+                                                   .frame(maxWidth: .infinity)//横幅を自由に任せる
+                                                   .background(
+                                                    Group {//方が異なるもものを同じっぽく扱わせる  LinearGradient  Color
+                                                        if selectGenres.contains(item.rawValue) {//それが選ばれているジャンルなら
+                                                            LinearGradient(//グラデーション背景
+                                                                colors: [Color.orange, Color.red],
+                                                                startPoint: .leading,
+                                                                endPoint: .trailing
+                                                            )
+                                                        } else {
+                                                            Color.gray.opacity(0.15)//無色
+                                                        }
+                                                    }
+                                                   )
+                                                   .foregroundColor(selectGenres.contains(item.rawValue) ? .white : .primary) //ここまで装飾
+                                                   .cornerRadius(10)
+                                               
+                                           }
+                                           
+                                           
+                                       }
+                                   }
+                
+                
+                Button("戻る"){
+                    isselectgenreview = false
+                }
+                
+                Spacer()
+            }
+            .frame(width:300)
+            
+        }
+    }
+}*/
+
+struct SelectGenreView: View {
+    
+    @Binding var isselectgenreview: Bool
+    @Binding var selectGenres: Set<String>
+    
+    var onSave: () -> Void
+    
+    var body: some View {
+        ZStack {
+            // 背景（うっすら暗く）
+            Color.black.opacity(0.2)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                
+                // ===== ヘッダー =====
+                VStack(spacing: 6) {
+                    Text("ジャンル選択")
+                        .font(.headline)
+                    
+                    Text("\(selectGenres.count)個選択中")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                // ===== グリッド =====
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ],
+                    spacing: 12
+                ) {
+                    
+                    ForEach(RamenGenre.allCases, id: \.self) { item in
+                        
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                toggle(genre:item.rawValue)
+                            }
+                        }) {
+                            Text(item.rawValue)
+                                .font(.caption)
+                                .padding(.vertical, 10)
+                                
+                                .frame(maxWidth: .infinity)
+                                
+                                .background(
+                                    Group {//方が異なるもものを同じっぽく扱わせる  LinearGradient  Color
+                                        if selectGenres.contains(item.rawValue) {//それが選ばれているジャンルなら
+                                            LinearGradient(//グラデーション背景
+                                                colors: [Color.orange, Color.red],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        } else {
+                                            Color.gray.opacity(0.15)//無色
+                                        }
+                                    }
+                                    
+                                        )
+                                
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                                .foregroundColor(
+                                    selectGenres.contains(item.rawValue)
+                                    ? .white
+                                    : .primary
+                                )
+                            
+                        }
+                    }
+                }
+                
+                // ===== 操作ボタン =====
+                HStack {
+                    Button("全解除") {
+                        selectGenres.removeAll()
+                    }
+                    
+                    Spacer()
+                    
+                    Button("適用") {
+                        onSave()
+                        isselectgenreview = false
+                    }
+                    .bold()
+                }
+                .padding(.top, 10)
+                
+            }
+            .padding(20)
+            
+            .frame(width:320,height:350)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.1), radius: 10)
+            )
+        }
+        
+    }
+    
+    // ===== トグル処理 =====
+    func toggle(genre: String) {
+        if selectGenres.contains(genre) {
+            selectGenres.remove(genre)
+        } else {
+            selectGenres.insert(genre)
+        }
+    }
+}
 
 struct VisitAlert: View {//ver3
     @Binding var isimpress: String
@@ -2168,7 +2924,7 @@ struct VisitAlert: View {//ver3
                                                        Button {
                                                            genre = item
                                                        } label: {
-                                                           Text(item.rawValue)//.enumの表示文字 変数 -> 文字
+                                                           Text(item.rawValue)//.enumの表示文字 変数 -> 文字String
                                                            
                                                                .font(.caption)//ここから
                                                                .padding(.vertical, 8)
@@ -2185,6 +2941,7 @@ struct VisitAlert: View {//ver3
                                                                         Color.gray.opacity(0.15)//無色
                                                                     }
                                                                 }
+                                                                
                                                                )
                                                                .foregroundColor(genre == item ? .white : .primary) //ここまで装飾
                                                                .cornerRadius(10)
@@ -2275,10 +3032,3 @@ extension View {//強制的にこいつを呼び出すとfocusを外す
 //通常の  id:ObjectId　だとrealm.addするタイミングで idを割り振る　今 ramendata は idが振られずに 配列に追加する　それだと　addするとき同じものだと認識されちゃうかも　??
     
 
-
-    
-    
-
-
-//星を表示している位置が不安定 という大問題
-// 
