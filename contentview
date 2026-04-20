@@ -4,20 +4,7 @@ import CoreLocation
 import RealmSwift
 
 // 店情報モデル
-struct Shop: Identifiable {//店情報を格納する型
-    let id = UUID()//それぞれの店に一意性を持たせる
-    let name: String
-    let rating: Double
-    let coordinate: CLLocationCoordinate2D//緯度経度をもつ型 struct CLLocationCoordinate2D {var latitude: CLLocationDegrees   // 緯度var longitude: CLLocationDegrees  // 経度}
-    let isOpennow:Bool
-}
 
-
-actor SearchQueue {
-    func run(_ block: @escaping () async -> Void) async {
-        await block()
-    }
-}
 
 // カスタムピン
 struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageがある
@@ -137,55 +124,21 @@ struct RamenAnnotation_2: View {//こいつ自身表示させる型 Text image�
     }
 }
 
-struct RamenAnnotation_3: View {//こいつ自身表示させる型 Text imageがある
-    var rating: Double
-    var name:String
 
-    @Binding var isTap:Bool
-    @Binding var shopname:String
-    
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            Text("⭐️\(rating, specifier: "%.1f")")
-                .font(.caption2)
-                .padding(4)
-                .background(Color.white)
-                .cornerRadius(6)
-                .shadow(radius: 2)
-            Button(action:{shopname = name
-                           isTap.toggle()}){//ボタン押したらその店の名前を呼び出し元と共有する
-                Image("ramenwhat") // Assetsにラーメンアイコンを追加
-                                   
-                    .resizable()
-                    .foregroundColor(.blue)
-                    .frame(width: 32, height: 32)
-                    
-            }
-            
-        }
-        .frame(width: 80, height: 70, alignment: .bottom)
-                .offset(y: -35)
-    }
+
+enum RamenGenre: String, CaseIterable {//[] は　単なるデータの塊 で同じ型ならなんでも入る,  struct AはAというオブジェクトの属性, enumは自分で指定した種類しか入らないから　それ以外のものは絶対に入らない
+    case shoyu = "醤油"//可読性 + コンパイルチェック
+    case miso = "味噌"
+    case shio = "塩"
+    case tonkotsu = "豚骨"
+    case iekei = "家系"
+    case jiro = "二郎系"
+    case tsukemen = "つけ麺"
+    case other = "その他"
 }
 
-/*
-struct RouteOverlay: View {
-    let route: MKRoute?
-
-    var body: some View {
-        if let route {
-            MapPolyline(route.polyline)
-                .stroke(.blue, lineWidth: 5)
-        }
-        else{
-            EmptyView()
-        }
-    }
-}
-*/
-
-enum RamenGenre: String, CaseIterable {//CaseIterable はなんのために使うのかな？　あんまりenumの使い方がよくわかっていないかも？
+enum RamenGenre2: String, CaseIterable {//RamenGenreにcase allを加えたもの
+    case all = "全て"
     case shoyu = "醤油"
     case miso = "味噌"
     case shio = "塩"
@@ -196,6 +149,13 @@ enum RamenGenre: String, CaseIterable {//CaseIterable はなんのために使�
     case other = "その他"
 }
 
+
+actor SearchQueue {
+    func run(_ block: @escaping () async -> Void) async {
+        await block()
+    }
+}
+
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()//現在では一回だけLocationMangerを呼び出し　呼び出すとcenterをセッティングする
     @State private var Ramendata = RamenData()
@@ -204,8 +164,8 @@ struct ContentView: View {
     
     
     @State private var didFetch = false
-    @State var isTap = false
-    @State var searchtext:String = ""
+    @State var isTap = false//アイコンをタップしたかどうかの判定
+    @State var searchtext:String = ""//検索クエリ
     
     
     @State var cameraPosition:MapCameraPosition = .region(MKCoordinateRegion(
@@ -213,15 +173,8 @@ struct ContentView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
     ))
 
-    //@State private var region = MKCoordinateRegion(//@State変数はその中の値が変わるとviewと連結されるようになっている 自動更新 それを使っているviewに対して
-       // center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
-        //span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-    //)//MKCoordinateRegionっていうのはcenter,spanっていう二つの値を持つ構造体である. でその構造体に対して値を入れ込んでいるってこと latideltaは0.02っていうのは範囲の広さ
-    
-    //@State private var shops: [Shop] = [] // 取得済み店をキャッシュ
     @State var shopname:String = ""
     @State var targetdestination:CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917)
-    @State var phonenumber:String = ""
     
     @State var isSearching:Bool = false
     @State var isFlag:Bool = false
@@ -282,138 +235,36 @@ struct ContentView: View {
     @State var visitlistflag = false
     
     
+    let searchQueue = SearchQueue()
     
-    @State var displayShops: [RamenShop] = []
+    @State var displayShops: [RamenShop] = []//実際にビューに表示する配列
     
     
     @FocusState var isSearchFocused:Bool //検索時のフォーカス
     
-    let searchQueue = SearchQueue()
+    //let searchQueue = SearchQueue()
     
     
     @State private var searchVersion = 0
     
     
-    @State var selvramendata_latitude = 0.0
+    @State var selvramendata_latitude = 0.0 // 訪問一覧からタップしたお店に移動するためmove_To
     @State var selvramendata_longitude = 0.0
     
     
-    @State var isvisitanalize = false
+    @State var isvisitanalize = false //分析Viewの表示用
   
     
     
-    var body: some View {//bodyが変化すると関係ないとこまで再計算される だからvarも計算し直し
+    var body: some View {
         
-        //if let region = locationManager.region{//アンラップした変数はただのローカル変数でありそれ自身の値をState変数(Binding)にはできない flagとしては使えるのかな？
-        //でもrealmswiftから撮ってくるときunlap表示してたような？ 少なくともBinding変数には使えない
         ZStack(alignment: .top){
-            
-            /*
-             Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: Ramendata.shops + (selectedShop.map{[$0]} ?? [])) //Mapはviewプロトコル showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
-             //shopname = shop.name
-             {shop in
-             //ForEach(Ramendata.shops){shop in
-             
-             MapAnnotation(coordinate: shop.coordinate) {//Mapの中で使って,緯度経度を渡せば　そこに中のviewをおいてくれるのがMapANnotation()
-             //if let isOpenNow = shop.isOpenNow{//isOpenNowが空じゃなければ
-             
-             RamenAnnotation(rating: shop.rating,name:shop.name,isstate:shop.isOpenNow,isTap: $isTap,shopname:$shopname,targetdestination:$targetdestination,destination:shop.coordinate)
-             //  }
-             
-             
-             
-             }
-             
-            
-             
-             }
-             .overlay{
-             
-             RouteOverlay(route: route)
-             
-             
-             }
-             */
-            /*
-            var allShops: [RamenShop] { // 計算量 0(N*M) => Hashで展開して取得すると O(N+M) その時丸めこむ
-                var shops = Ramendata.shops
-                
-                var okshops:[RamenShop] = []
-                
-                for shop in shops{//通常初期検索の中から
-                    let shopvisitstate = visitramendatabase.contains{item in//realmに重複している(座標が) を見つけてあったらTrue
-                        // ピッタリチェックだと危ういかもしれんreturn shop.coordinate.latitude == item.latitude && shop.coordinate.longitude == item.longitude
-                        return distance(CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude), shop.coordinate) < 50 && shop.name == item.name
-                    }
-                    
-                    if !shopvisitstate{
-                        okshops.append(shop)//okなやつを追加する
-                    }
-                    
-                }
-                
-                return okshops
-            }*/
-            
-            
-            /*
-            var allShops: [RamenShop] { // 計算量 0(N*M) => Hashで展開して取得すると O(N+M) その時丸めこむ これって本当に再計算されるの？　毎回
-                var shops = Ramendata.shops
-                
-                var okshops:[RamenShop] = []
-                
-                let visitedSet = Set(visitramendatabase.map {visit in  key_VShop(for: visit) })
-                
-                for shop in shops{//通常初期検索の中から
-                    
-                    if !visitedSet.contains(key_Shop(for: shop)){
-                        okshops.append(shop)//okなやつを追加する
-                    }
-                    
-                }
-                print("chenged")
-                return okshops
-            }//ごめんマップ移動したら再計算されてるわ これなんとかしても良いかもしれない　後回し
-                */
-            /*
-            
-            var visitedShops:[RamenShop] = visitramendatabase.map{ramenshop in   よくわかんないけど　これでやると移動中は何故か消えている　多分Mapとの連携問題 まあとにかくうざいから必要な時に計算する
-                RamenShop(
-                    name:ramenshop.name,
-                    rating:ramenshop.rating,
-                    coordinate: CLLocationCoordinate2D(
-                        latitude: ramenshop.latitude, longitude: ramenshop.longitude
-                    ),
-                    isOpenNow: ramenshop.isOpenNow,
-                    regularHours:Array(ramenshop.regularHours),
-                    isvisited: true//realmから引っ張ってきたものはTrue
-                )
-            }*/
-            
-            /*
-            var displayShops: [RamenShop] {
-                
-                //(Ramendata.shops + visitedShops + (selectedShop.map { [$0] } ?? []))
-                (allShops + visitedShops + (selectedShop.map { [$0] } ?? []))
-                    .compactMap { shop in
-                        guard shop.regularHours != nil else { return nil }
-                        print("再生成")
-                        return shop
-                    }
-            }*/
+           
  
-                Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: displayShops) //Mapはviewプロトコル  displayShopsはもう先にregularHoursがないものは間引いている気がする  こうやって間引かないと　ない時にエラーになる shop showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
+                Map(coordinateRegion: $locationManager.region, showsUserLocation: true,annotationItems: displayShops) //Mapはviewプロトコル  showsUserLocationでデフォルトでuserの位置を追跡するようになる気がする　青丸
                 //shopname = shop.name
                 {shop in
-                    //ForEach(Ramendata.shops){shop in
-                    
-                    
-                    
-                    
-                    
-                    
-                    //guard let regularhours = shop.regularHours else{return} 何もない場合にもViewを返さないといけないから returnはダメ
-                    //if let regularhours = shop.regularHours{
+                  
                     MapAnnotation(coordinate: shop.coordinate) {
                         RamenAnnotation(
                             rating: shop.rating,
@@ -453,21 +304,18 @@ struct ContentView: View {
                
                 
                 
-                .allowsHitTesting(!isSearching)//検索中はMap操作をfalseにする
-               // .safeAreaInset(edge: .top) {
-                    HStack {
+                .allowsHitTesting(!isSearching)//検索中はMap操作をfalseにする => なってない
+
+                    HStack {//ここから検索ボックス
                         
                        Spacer()
                             .frame(width:35)
                         
                         TextField("ラーメン屋を検索",text:$searchtext)
-                        //  .focused($isSearchFocused)
-                          //  .padding(.leading,30)
-                           
-                     
+                        
                         Spacer()
                             .frame(width:35)
-                        //.offset(y:-680)//無理くり合わせている
+                       
                     }
                     .frame(width:370,height:60)
                     .background(.white)
@@ -478,7 +326,8 @@ struct ContentView: View {
                         HStack{
                             Spacer()
                                 .frame(width:35)
-                            Button(action:{hideKeyboard()}){
+                            
+                            Button(action:{hideKeyboard()}){//入力中のフォーカスを戻す
                                 Image(systemName: "chevron.left")
                             }
                             .foregroundColor(.black)
@@ -486,7 +335,7 @@ struct ContentView: View {
                             Spacer()
                                 .frame(width:310)
                             
-                            Button(action:{searchtext = ""}){
+                            Button(action:{searchtext = ""}){//文字を消す
                                 Image(systemName: "xmark")
                                     .foregroundColor(.black)
                                     .padding(5)
@@ -496,41 +345,22 @@ struct ContentView: View {
                                     )
                             }
                             
+                            
                            Spacer()
                                 .frame(width:35)
-                            //Spacer()
-                            
                         }
-                    }
-                       // .padding(.top, 20)
-                        .onSubmit {
+                    }//ここまで
+                      
+                        .onSubmit {//改行した時の動作
                             
                             let text = searchtext.contains("ラーメン") ? searchtext:"\(searchtext)ラーメン"
                             let center = locationManager.region.center
                             
                             isSearching = true//検索中
-                            // SearchRamendata.ramenshops.removeAll()//検索履歴を戻す => 戻ってそのまま検索した時に検索できないから そうしないと
-                            
-                            // SearchRamendata.fetch(latitude: center.latitude, longitude: center.longitude,text:text)//一応自分周りで検索をかける
-                            //まだ自分awaitとTaskを理解してないのかもしれない　awaitはなに　その処理をやっている時でも
-                            //contentviewは進んでいくの？　処理終わったら通知がいくみたいな？
-                            
-                          /*
+                          
                             Task {
                                 await searchQueue.run {
-                                    await SearchRamendata.fetch(
-                                        latitude: center.latitude,
-                                        longitude: center.longitude,
-                                        text: text
-                                    )
-                                }
-                                await MainActor.run {
-                                    searchVersion += 1
-                                }
-                            }*/
-                            Task {
-                                await searchQueue.run {
-                                    await SearchRamendata.fetch(
+                                    await SearchRamendata.fetch(//非同期でクエリをもとに検索をかけて緯度、経度
                                         latitude: center.latitude,
                                         longitude: center.longitude,
                                         text: text
@@ -606,9 +436,6 @@ struct ContentView: View {
                         //allShops.removeAll()//allShopsが再計算し続けられなければ　一旦また取得されるタイミングまでは消すことが可能になる そしてそれは保存 * 次の範囲検索まで　ただ、完全にremoveして戻したい時もある
                 //その時は.toggle()で再び再計算かな/
                         
-                        LocationHelper.getAreaName(latitude: 35.6812, longitude: 139.6917) { area in
-                            print(area)
-                        }
                         
                         isvisit.toggle()
                         if isvisit{
@@ -723,14 +550,14 @@ struct ContentView: View {
                                    evaluate: $evaluate,
                                    isvisitalert: $isvisitalert,
                                    genre:$genre
-                                   ,onSave: {  // 大事                同じRealmを別スレッドで使わない let realm = して => 非同期 realm.writeとかダメだよ
+                                   ,onSave: {
                             
                             //ここメソッドにした方が良いんだけどね  非同期でRealmを触るのは構わない
                             
-                            LocationHelper.getAreaName(
+                            LocationHelper.getAreaName(// 緯度軽度をもとにareaを取り出す
                                 latitude: targetdestination.latitude,
                                 longitude: targetdestination.longitude
-                            ) { area in
+                            ) { prefecture,city in
                                 
                                 do{//realmに今の中心地点　半径100m 以内をkeyにdatabaseを取り出す
                                     let realm = try Realm()
@@ -757,7 +584,9 @@ struct ContentView: View {
                                     
                                     visitramendata.isimpress = isimpress
                                     visitramendata.evaluate = evaluate
-                                    visitramendata.address = area
+                                    visitramendata.prefecture = prefecture
+                                    
+                                    visitramendata.city = city
                                     //visitramendata.visitAt = Date()
                                     //LocationHelper.getAreaName(latitude: targetdestination.latitude, longitude: targetdestination.longitude) { area in//緯度経度 -> 住所
                                     //     visitramendata.address = area
@@ -909,8 +738,9 @@ struct ContentView: View {
                                             
                                             Text("\(selectrating, specifier: "%.1f")")
                                                 .font(.headline)
-                                            
-                                            Text("Google評価")
+                                           
+                                            Text("Google")
+                                            //Googleを明確に示す Text("Google評価")
                                                 .font(.caption)
                                                 .foregroundColor(.gray)
                                         }
@@ -1097,10 +927,7 @@ struct ContentView: View {
                     
                     // Realmロード
                     .onAppear {
-                        
-                        LocationHelper.getAreaName(latitude: 35.6812, longitude: 139.6917) { area in
-                            print(area)
-                        }
+                       
                         
                         if let vid = visitid {
                             do {
