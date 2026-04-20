@@ -1,0 +1,482 @@
+import SwiftUI
+import MapKit //GoogleMap的な　有料のライブラリ
+import CoreLocation
+import RealmSwift
+/*
+ struct RankingView: View {
+ 
+ @ObservedResults(VRamenDatabase.self) var visitramendatabase
+ @State var selectgenre:String = ""
+ 
+ let dateFormatter = DateFormatter()
+ 
+ var sortedList: [VRamenDatabase]{ //visitramendatabaseは[]ではなく窓
+ let filtered = Array(visitramendatabase//RealmObject .filter{条件} で可能　or dbを直接触っても可能
+ // .filter {item in
+ //     selectGenres.isEmpty || selectGenres.contains(item.genre)
+ .filter{item in
+ selectgenre == item.genre
+ }
+ )
+ 
+ return filtered.sorted { $0.evaluate > $1.evaluate }
+ 
+ 
+ }
+ var sortedList_n:[VRamenDatabase]{//上位5まで選別　ただし　5位の評価と同じものは表示する
+ if sortedList.count >= 5{
+ return sortedList.filter{item in
+ item.evaluate >= sortedList[4].evaluate
+ }//フィルターは素の配列を変えるわけではないってことです＝＝＝＝
+ 
+ }
+ return sortedList
+ }
+ 
+ var totalEvaluate: Double {//こいつが間接的にでも依存しているものが変化したりアクセスされたりすると再計算される
+ sortedList.reduce(0) { $0 + $1.evaluate }
+ }
+ 
+ 
+ @State var selectedPrefecture = ""
+ @State var isPrefSheet = false
+ 
+ 
+ var body: some View {
+ /* VStack {
+  
+  
+  if sortedList.count > 0 {
+  Text("平均評価 \(String(format: "%.2f", totalEvaluate / Double(sortedList.count)))")
+  .font(.caption)
+  .foregroundColor(.gray)
+  }
+  
+  // ===== ジャンル =====
+  LazyVGrid(
+  columns: [
+  GridItem(.flexible()),
+  GridItem(.flexible()),
+  GridItem(.flexible())
+  ],
+  spacing: 10
+  ) {
+  ForEach(RamenGenre.allCases, id: \.self) { item in
+  Button {
+  selectgenre = item.rawValue
+  } label: {
+  Text(item.rawValue)
+  .font(.caption)
+  .padding(.vertical, 10)
+  .frame(maxWidth: .infinity)
+  .background(
+  Group {
+  if selectgenre == item.rawValue {
+  LinearGradient(
+  colors: [.orange, .red],
+  startPoint: .leading,
+  endPoint: .trailing
+  )
+  } else {
+  Color.gray.opacity(0.12)
+  }
+  }
+  )
+  .foregroundColor(selectgenre == item.rawValue ? .white : .primary)
+  .cornerRadius(10)
+  }
+  }
+  }
+  .padding(.horizontal)
+  .padding(.top, 4)
+  
+  
+  
+  
+  // ===== ランキング =====
+  VStack(alignment: .leading, spacing: 12) {
+  
+  Text("ランキング")
+  .font(.headline)
+  .padding(.horizontal)
+  
+  Button {
+  isPrefSheet = true
+  } label: {
+  HStack {
+  Text(selectedPrefecture.isEmpty ? "都道府県を選択" : selectedPrefecture)
+  Spacer()
+  Image(systemName: "chevron.down")
+  }
+  .padding()
+  .background(Color.white)
+  .cornerRadius(12)
+  .shadow(radius: 1)
+  }
+  .sheet(isPresented: $isPrefSheet) {
+  PrefectureSelectView(selected: $selectedPrefecture)
+  }
+  
+  
+  ForEach(sortedList_n) { visitramen in
+  VStack(alignment: .leading, spacing: 6) {
+  
+  HStack {
+  Image(systemName: "star.fill")
+  .foregroundColor(.yellow)
+  
+  Text(String(format: "%.1f", visitramen.evaluate))
+  .bold()
+  
+  Text(visitramen.name)
+  .lineLimit(1)
+  
+  Spacer()
+  }
+  
+  HStack {
+  Text(dateFormatter.string(from: visitramen.visitAt))
+  .font(.caption)
+  .foregroundColor(.gray)
+  
+  Spacer()
+  
+  Text(visitramen.genre)
+  .font(.caption2)
+  .padding(.horizontal, 8)
+  .padding(.vertical, 4)
+  .background(Color.gray.opacity(0.15))
+  .cornerRadius(6)
+  }
+  }
+  .padding(14)
+  .background(Color.white)
+  .cornerRadius(14)
+  .shadow(color: .black.opacity(0.05), radius: 2)
+  .padding(.horizontal)
+  }
+  }//VStack
+  }
+  .onAppear(){
+  
+  dateFormatter.locale = Locale(identifier: "ja_JP")
+  dateFormatter.dateFormat = "yyyy年MM月dd日"
+  
+  
+  }*/
+ VStack(alignment: .leading, spacing: 12) {
+ 
+ Text("ランキング")
+ .font(.headline)
+ .padding(.horizontal)
+ 
+ ForEach(sortedList_n) { item in
+ 
+ HStack {
+ 
+ VStack(alignment: .leading, spacing: 6) {
+ Text(item.name)
+ .font(.headline)
+ 
+ Text(String(format: "%.1f ★", item.evaluate))
+ .font(.caption)
+ .foregroundColor(.orange)
+ }
+ 
+ Spacer()
+ 
+ Text(dateFormatter.string(from: item.visitAt))
+ .font(.caption2)
+ .foregroundColor(.gray)
+ }
+ .padding()
+ .background(Color.white)
+ .cornerRadius(14)
+ .shadow(color: .black.opacity(0.04), radius: 4)
+ .padding(.horizontal)
+ }
+ }
+ .onAppear(){
+ 
+ dateFormatter.locale = Locale(identifier: "ja_JP")
+ dateFormatter.dateFormat = "yyyy年MM月dd日"
+ 
+ 
+ }
+ 
+ }
+ 
+ 
+ }
+ }
+ */
+ 
+ struct PrefectureSelectView: View {
+ @Binding var selected: String
+ @Environment(\.dismiss) var dismiss
+ 
+     let list = [//構造としては危ないかもしれない こんなにいっぱいかいて一文字でもずれたら動作がうまくいかなくなるっていう構造
+         "全国",
+         "北海道",
+         "青森県",
+         "岩手県",
+         "宮城県",
+         "秋田県",
+         "山形県",
+         "福島県",
+         "茨城県",
+         "栃木県",
+         "群馬県",
+         "埼玉県",
+         "千葉県",
+         "東京都",
+         "神奈川県",
+         "新潟県",
+         "富山県",
+         "石川県",
+         "福井県",
+         "山梨県",
+         "長野県",
+         "岐阜県",
+         "静岡県",
+         "愛知県",
+         "三重県",
+         "滋賀県",
+         "京都府",
+         "大阪府",
+         "兵庫県",
+         "奈良県",
+         "和歌山県",
+         "鳥取県",
+         "島根県",
+         "岡山県",
+         "広島県",
+         "山口県",
+         "徳島県",
+         "香川県",
+         "愛媛県",
+         "高知県",
+         "福岡県",
+         "佐賀県",
+         "長崎県",
+         "熊本県",
+         "大分県",
+         "宮崎県",
+         "鹿児島県",
+         "沖縄県"
+     ]
+ 
+ var body: some View {
+ List(list, id: \.self) { pref in
+ Button {
+ selected = pref
+ dismiss()
+ } label: {
+ Text(pref)
+ }
+ }
+ .navigationTitle("都道府県")
+ }
+ }
+ 
+struct RankingView: View {
+    
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    @State var selectgenre: String = ""
+    
+    @State var selectedPrefecture = "全国"
+    @State var isPrefSheet = false
+    
+    
+    let dateFormatter = DateFormatter()
+    
+   
+    
+    
+    var filteredList: [VRamenDatabase] {
+        visitramendatabase.filter {
+            (selectgenre.isEmpty || $0.genre == selectgenre) &&
+            (selectedPrefecture == "全国" || $0.prefecture == selectedPrefecture)
+        }
+    }
+    
+    var sortedList: [VRamenDatabase] {
+        filteredList.sorted { $0.evaluate > $1.evaluate }
+    }
+    
+    var totalEvaluate: Double {
+        sortedList.reduce(0) { $0 + $1.evaluate }
+    }
+    
+    
+    var body: some View {
+        ZStack {
+            Color(UIColor.systemGroupedBackground)
+                .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 18) {
+                    
+                    // ======================
+                    // HEADER（コア情報）
+                    // ======================
+                    VStack(spacing: 10) {
+                        Text("ランキング")
+                            .font(.title2.bold())
+                        
+                        HStack(spacing: 20) {
+                            
+                            VStack {
+                                Text("\(sortedList.count)")
+                                    .font(.title3.bold())
+                                Text("件数")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            VStack {
+                                Text(String(format: "%.2f",
+                                            sortedList.isEmpty ? 0 :
+                                            totalEvaluate / Double(sortedList.count)))
+                                    .font(.title3.bold())
+                                Text("平均評価")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            VStack {
+                                Text(selectedPrefecture.isEmpty ? "全国" : selectedPrefecture)
+                                    .font(.title3.bold())
+                                Text("エリア")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.05), radius: 4)
+                    .padding(.horizontal)
+                    
+                    
+                    // ======================
+                    // PREF FILTER（UI軽く）
+                    // ======================
+                    Button {
+                        isPrefSheet = true
+                    } label: {
+                        HStack {
+                            Text(selectedPrefecture.isEmpty ? "都道府県を選択" : selectedPrefecture)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .foregroundColor(.gray)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(14)
+                        .shadow(color: .black.opacity(0.05), radius: 2)
+                    }
+                    .padding(.horizontal)
+                    .sheet(isPresented: $isPrefSheet) {
+                        PrefectureSelectView(selected: $selectedPrefecture)
+                    }
+                    
+                    
+                    // ======================
+                    // GENRE FILTER
+                    // ======================
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(RamenGenre2.allCases, id: \.self) { item in
+                                Button {
+                                    if item.rawValue == "全て"{
+                                        selectgenre = ""
+                                    }
+                                    else{
+                                        selectgenre = item.rawValue
+                                    }
+                                    
+                                } label: {
+                                    Text(item.rawValue)
+                                        .font(.caption)
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 14)
+                                        .background(
+                                            Group{
+                                                if selectgenre == item.rawValue {
+                                                    LinearGradient(colors: [.orange, .red],
+                                                                   startPoint: .leading,
+                                                                   endPoint: .trailing)
+                                                }
+                                                else{
+                                                    Color.gray.opacity(0.12)
+                                                }
+                                            }
+                                        )
+                                        .foregroundColor(selectgenre == item.rawValue ? .white : .primary)
+                                        .cornerRadius(20)
+                                }
+                            }
+                            
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    
+                    // ======================
+                    // LIST（主役）
+                    // ======================
+                    VStack(spacing: 12) {
+                        
+                        ForEach(sortedList) { item in
+                            VStack(alignment: .leading, spacing: 8) {
+                                
+                                HStack {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                    
+                                    Text(String(format: "%.1f", item.evaluate))
+                                        .bold()
+                                    
+                                    Text(item.name)
+                                        .lineLimit(1)
+                                    
+                                    Spacer()
+                                }
+                                
+                                HStack {
+                                    Text(dateFormatter.string(from: item.visitAt))
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    
+                                    Spacer()
+                                    
+                                    Text(item.genre)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.gray.opacity(0.15))
+                                        .cornerRadius(6)
+                                }
+                            }
+                            .padding(14)
+                            .background(Color.white)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.05), radius: 3)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.top, 12)
+                .padding(.bottom, 40)
+            }
+        }
+        .onAppear {
+            dateFormatter.locale = Locale(identifier: "ja_JP")
+            dateFormatter.dateFormat = "yyyy年MM月dd日"
+        }
+    }
+}
