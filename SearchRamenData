@@ -102,7 +102,7 @@ class SearchRamenData {//こういう形式になってるらしい
                         "latitude": latitude,
                         "longitude": longitude
                     ],
-                    "radius": 10000//後で変更
+                    "radius": 5000//後で変更
                 ]
             ]
         ]
@@ -133,7 +133,7 @@ class SearchRamenData {//こういう形式になってるらしい
                             longitude: location.longitude
                         ),
                         isOpenNow: place.currentOpeningHours?.openNow ?? false,
-                        regularHours: place.regularOpeningHours?.weekdayDescriptions,
+                        regularHours: place.regularOpeningHours?.weekdayDescriptions ?? [],
                         isvisited: false,
                         vid:nil,
                         visitrating: nil
