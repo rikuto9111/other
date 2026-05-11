@@ -1,0 +1,60 @@
+//
+//  LocationManager.swift
+//  ramen
+//
+//  Created by user on 2025/12/19.
+//
+import CoreLocation//GPSを扱う(iosと)
+import MapKit
+import SwiftUI
+
+final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {//ObservableObjectはPublishedを使うため CLLocationMangereDelegateは受け取れたかの通知を受け取る役を作る
+    
+    private let manager = CLLocationManager()//ユーザの現在地を取ってくる本体
+    
+    @Published var didSetInitialRegion = false
+    
+    //@Published var region: MKCoordinateRegion?//Publishedはクラス変数が変わったらそれを使っているviewに対しても通知してやる SwiftUiに渡すデータ Mapkit型
+    @Published var region: MKCoordinateRegion = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+
+    
+    override init() {
+        super.init()//NSObjectの初期設定
+        manager.delegate = self//少なくともこのメソッドにおいてはmanagerは取得しても持ってるだけ -> delegateで設定したものだけに知らせるようになっている selfは自クラス
+        manager.desiredAccuracy = kCLLocationAccuracyBest//情報制度の設定
+        manager.requestWhenInUseAuthorization()//位置情報許可リクエスト
+        manager.startUpdatingLocation()//位置情報の取得開始
+    }
+    
+    //位置情報が取得できたら自動でCoreLocationが呼ぶ
+
+    func requestLocation() {
+            manager.requestLocation()//位置情報取得を一回だけ行う
+        }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.first else { return }
+        didSetInitialRegion = true//フラグ　
+        
+        region = MKCoordinateRegion( center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) )
+        manager.stopUpdatingLocation()
+        
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+            print(error)
+        }
+    func startUpdatingLocation() {//何故噛ませる？
+        manager.startUpdatingLocation()
+    }
+    
+}
+
+//@StateObjectに対して再代入は不可能
+
+
+
+//クラスのインスタンスを参照 => 値が変わる => クラス自体は変わらない => その値を使っているViewの再構成が行われるだけです　だからclassの中の他の値とかは変わらない
