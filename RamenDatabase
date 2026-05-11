@@ -1,0 +1,33 @@
+//
+//  LocationManager.swift
+//  ramen
+//
+//  Created by user on 2025/12/19.
+//
+import RealmSwift
+import Foundation//Date型に必要
+
+class RamenDatabase:Object,Identifiable{ //Realmに保存したい型はObjectプロトコルにする idを使ってforeachとかでswiftuiで識別するためにIdentifiable
+    @Persisted(primaryKey: true) var id :ObjectId = ObjectId()//主キーを直接migrationブロックに置けない!!  
+    @Persisted var latitude:Double = 0.0
+    @Persisted var longitude:Double = 0.0
+    
+    @Persisted var timestamp: Date
+
+    @Persisted var ramenshops : List<Ramendetails>
+    
+    
+}
+
+class Ramendetails:Object,Identifiable{
+    @Persisted(primaryKey: true) var id:ObjectId = ObjectId()
+    
+    @Persisted var name:String
+    @Persisted var rating:Double
+    @Persisted var latitude:Double
+    @Persisted var longitude:Double
+    @Persisted var isOpenNow:Bool
+    
+    @Persisted var regularHours: List<String>
+    @Persisted var isvisited:Bool
+}
