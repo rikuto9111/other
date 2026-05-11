@@ -1,0 +1,38 @@
+//
+//  LocationManager.swift
+//  ramen
+//
+//  Created by user on 2025/12/19.
+//
+import RealmSwift
+import Foundation
+
+class VRamenDatabase:Object,Identifiable{//VisitedRamenDatabaseの略
+    
+    @Persisted(primaryKey: true) var id:ObjectId = ObjectId()
+    
+    @Persisted var name:String
+    @Persisted var rating:Double
+    @Persisted var latitude:Double
+    @Persisted var longitude:Double
+    @Persisted var isOpenNow:Bool
+    
+    @Persisted var regularHours: List<String>
+    
+    @Persisted var isimpress:String
+    @Persisted var evaluate:Double//自己評価
+    
+    //@Persisted var address:String//店の簡易住所
+    @Persisted var prefecture:String
+    
+    @Persisted var city:String
+    
+    @Persisted var visitAt:Date = Date()
+    
+    @Persisted var genre:String 
+    
+    
+    
+    
+    @Persisted var visitnumber:Int//訪問回数
+}
