@@ -1,0 +1,1104 @@
+import SwiftUI
+import MapKit //GoogleMap的な　有料のライブラリ
+import CoreLocation
+import RealmSwift
+import Combine
+ 
+
+ 
+/*
+struct HanteiView: View {
+    @Environment(\.presentationMode) var presentationMode
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    @State var selectgenre: String = ""
+    
+    @State var selectedPrefecture = "全国"
+    @State var isPrefSheet = false
+    
+    
+    @State var ramenPrefCount:[String:Int] = [:]
+    @State var ramenGenreCount:[String:Int] = [:]
+    
+    
+    @State var displayPrefCount:[(key: String, value: Int)] = []//実際に表示する県の件数とタイプごとの件数
+    @State var displaytypeCount:[String:Int] = ["あっさり系":0,"こってり系":0,"バランス系":0]
+    
+    let dateFormatter = DateFormatter()
+    
+    
+    
+    
+    var rank = 0
+    var lastEvaluate:Double = 0.0
+    
+    
+    @State var visitcount = 0
+    
+    
+    @State var mytype:String = ""
+    
+    
+    
+    @State var isramentypeview = false//RamenTypeViewの表示用
+    
+    
+    
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.orange.opacity(0.25), Color.yellow.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )//一色ベタ塗りじゃなくて背景をグラデーションチックに!!
+            .ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 28) {
+                    
+                    // ======================
+                    // 🧠 HERO（診断結果）
+                    // ======================
+                    
+                    VStack(spacing: 10) {
+
+                        Text("診断結果")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+
+                        Text(mytype)
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.orange, .red],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+
+                        Button {
+                            isramentypeview.toggle()
+                        } label: {
+                            Text("タイプ一覧を見る")
+                                .font(.caption)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.orange.opacity(0.15))
+                                .cornerRadius(10)
+                        }
+
+                    }
+                    
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)//背景と馴染むように薄く透過させる!
+                    .cornerRadius(24)
+                    .shadow(radius: 10)
+                    
+                    // ======================
+                    // 🍜 リングチャート
+                    // ======================
+                    ZStack {//真ん中に被せていく
+                        Circle()
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 20)
+                        
+                        Circle()
+                            .trim(from: 0, to: percent("あっさり系"))//0 ~ あっさり系 %までtrim
+                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 20, lineCap: .round))//太さ20のリングチャートを作る
+                            .rotationEffect(.degrees(-90))//デフォルトだと3時スタート
+                        
+                        Circle()
+                            .trim(from: percent("あっさり系"),
+                                  to: percent("あっさり系") + percent("こってり系"))//あっさり系 %から ~ あっさり系 + こってり系%までtrim
+                            .stroke(Color.red, style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        Circle()
+                            .trim(from: percent("あっさり系") + percent("こってり系"),
+                                  to: 1)
+                            .stroke(Color.green, style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack {
+                            Text("合計")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Text("\(visitcount)")
+                                .font(.title)
+                                .bold()
+                        }
+                    }
+                    .frame(width: 180, height: 180)
+                    
+                    .navigationBarBackButtonHidden(true)
+                    
+                    
+                    // ======================
+                    // 📊 内訳
+                    // ======================
+                    VStack(spacing: 14) {
+                        typeLegend(color: .blue, title: "あっさり系")
+                        typeLegend(color: .red, title: "こってり系")
+                        typeLegend(color: .green, title: "バランス系")
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .shadow(radius: 5)
+                    
+                    // ======================
+                    // 🗾 都道府県ランキング
+                    // ======================
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("よく行くエリア")
+                            .font(.headline)
+                        
+                        ForEach(displayPrefCount, id: \.key) { item in
+                            HStack {
+                                Text(item.key)
+                                    .font(.body)
+                                
+                                Spacer()
+                                
+                                Text("\(Int(Double(item.value) * 100 / Double(max(visitcount,1))))%")
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            ProgressView(value: Double(item.value),
+                                         total: Double(max(visitcount,1)))//進捗度をバーで!
+                            .tint(.orange)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .shadow(radius: 5)
+                    
+                }
+                .padding()
+            }
+        }
+        
+        
+        .sheet(isPresented: $isramentypeview) {
+            RamenTypeView(isramentypeview: $isramentypeview)
+        }
+        
+        
+        .toolbar {
+            
+            ToolbarItem(placement: .topBarLeading) {
+                
+                Button("< 戻る") {
+                    presentationMode.wrappedValue.dismiss()  //ここでトリガーをオンにして戻っても良いけど引数関連があると面倒臭い から一つ戻るだけにする
+                }
+            }
+        }//toolbar
+        
+        .background(EnableSwipeBackGesture2()) // ←ここを追加
+        
+        .onAppear {
+            dateFormatter.locale = Locale(identifier: "ja_JP")
+            dateFormatter.dateFormat = "yyyy年MM月dd日"
+            
+            
+            visitcount = visitramendatabase.count//訪問総数
+            
+            
+            
+            //ジャンルCount集計
+            for ramen in visitramendatabase{//O(N)
+                if let genreCount = ramenGenreCount[ramen.genre]{//ここで保証するのはgenreCountの存在
+                    ramenGenreCount[ramen.genre] = genreCount + 1
+                }
+                else{
+                    ramenGenreCount[ramen.genre] = 1
+                    
+                }
+            }
+            
+            print(ramenGenreCount)
+            
+            for ramenkey in ramenGenreCount.keys{//O(N) さらにジャンルを分ける
+                if ramenkey == "塩" || ramenkey == "醤油"{//あっさり系
+                    if let typeCount = ramenGenreCount[ramenkey],let original = displaytypeCount["あっさり系"]{
+                        displaytypeCount["あっさり系"] = typeCount + original
+                    }
+                    
+                }
+                
+                else if ramenkey == "二郎系" || ramenkey == "家系" || ramenkey == "豚骨"{//こってり系
+                    
+                    if let typeCount = ramenGenreCount[ramenkey],let original = displaytypeCount["こってり系"]{
+                        displaytypeCount["こってり系"] = typeCount + original
+                    }
+                    
+                    
+                }
+                else{
+                    if let typeCount = ramenGenreCount[ramenkey],let original = displaytypeCount["バランス系"]{
+                        displaytypeCount["バランス系"] = typeCount + original
+                    }
+                    
+                }
+                
+                
+            }
+            
+            
+            
+            
+            
+            for ramen in visitramendatabase{//O(N)
+                if let prefectureCount = ramenPrefCount[ramen.prefecture]{//ここで保証するのはgenreCountの存在
+                    ramenPrefCount[ramen.prefecture] = prefectureCount + 1
+                }
+                else{
+                    ramenPrefCount[ramen.prefecture] = 1
+                    
+                }
+            }
+            
+            
+            
+            let sortedPref =  ramenPrefCount.sorted { $0.value > $1.value }
+            
+            print(ramenPrefCount)
+            displayPrefCount = Array(sortedPref.prefix(2))//最大上位2つ なかったら1つ 1つか2つか0   0だったら何も表示しなくても良いかも 1だったらそれだけ　+ その他 2だったら　それら + その他
+            
+            print(displaytypeCount)
+            print(displayPrefCount)
+            
+            
+            
+            
+            if displayPrefCount.count > 0{//何も追加されていない状態は判定のしようがない
+                
+                
+                let pretotal = sortedPref.reduce(0){$0 + $1.value}
+                
+                if let assaricount = displaytypeCount["あっさり系"],let kottericount = displaytypeCount["こってり系"],let balancecount = displaytypeCount["バランス系"]{
+                    
+                    if Double(assaricount)/Double(visitcount) >= 0.50{//偏りがすごい あっさり系
+                        if Double(pretotal)/Double(visitcount) >= 0.85{//85%以上 集中型
+                            mytype = "おしゃれ勢"//インスタ映えもチェック! 新世代のラーメンスタイル
+                        }
+                        else{//分散型
+                            mytype = "まったり勢"//並ばず急がず遠出しない 喫茶店のようなゆるラーメンスタイル
+                        }
+                        
+                    }
+                    
+                    
+                    else if Double(kottericount)/Double(visitcount) >= 0.50{//偏りがすごい こってり系
+                        if Double(pretotal)/Double(visitcount) >= 0.85{//85%以上 集中型
+                            mytype = "地元ガチ勢"//気に入ったお店へ通い詰める　ガッツリラーメンスタイル
+                        }
+                        else{//分散型
+                            mytype = "遠征ジャンキー" // 好きなもののためならどこへでも 行動力の化身
+                        }
+                        
+                    }
+                    
+                    else if Double(balancecount)/Double(visitcount) >= 0.50{//偏りがすごい バランス系
+                        if Double(pretotal)/Double(visitcount) >= 0.85{//85%以上 集中型
+                            mytype = "安定志向"//冒険より安心　外さない一杯を求める堅実スタイル
+                        }
+                        else{//分散型
+                            mytype = "ラーメントラベラー"//ラーメンと旅行はセット 土地ごとのラーメンを味わい尽くすスタイル
+                        }
+                        
+                        
+                    }
+                    
+                    else{
+                        mytype = "究極のバランサー"//満遍なくラーメンを食べる 究極のラーメン好き
+                    }
+                    
+                }//if let シリーズ
+                
+                else{//displayCount
+                    mytype = "判定不可" //ここで引っかかってる
+                    
+                }
+                
+                
+                
+                
+                
+                
+                
+                
+            }
+            
+            print(mytype)
+            
+        }//.onAppear
+        
+        
+        
+    }
+    
+    func percent(_ key: String) -> Double {
+        let value = displaytypeCount[key, default: 0]
+        return visitcount == 0 ? 0 : Double(value) / Double(visitcount)
+    }
+    func typeLegend(color: Color, title: String) -> some View {
+        let p = percent(title)
+
+        return HStack {
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+
+            Text(title)
+
+            Spacer()
+
+            Text("\(Int(p * 100))%")
+                .bold()
+        }
+    }
+    
+}
+
+
+*/
+/*
+struct HanteiView: View {//確実に壊れないロジック
+
+    @Environment(\.presentationMode) var presentationMode
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+
+    @State var displayPrefCount: [(key: String, value: Int)] = []
+    @State var displaytypeCount: [String:Int] = [:]
+    @State var visitcount: Int = 0
+    @State var mytype: String = ""
+    @State var isramentypeview = false
+
+    var body: some View {
+
+        ZStack {
+
+            LinearGradient(
+                colors: [Color.orange.opacity(0.3), Color.yellow.opacity(0.15)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            ScrollView {
+
+                VStack(spacing: 28) {
+                    
+                    // ======================
+                    // 🧠 HERO（診断結果）
+                    // ======================
+                    
+                    VStack(spacing: 10) {
+
+                        Text("診断結果")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+
+                        Text(mytype)
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.orange, .red],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+
+                        Button {
+                            isramentypeview.toggle()
+                        } label: {
+                            Text("タイプ一覧を見る")
+                                .font(.caption)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.orange.opacity(0.15))
+                                .cornerRadius(10)
+                        }
+
+                    }
+                    
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)//背景と馴染むように薄く透過させる!
+                    .cornerRadius(24)
+                    .shadow(radius: 10)
+                    
+                    // ======================
+                    // 🍜 リングチャート
+                    // ======================
+                    ZStack {//真ん中に被せていく
+                        Circle()
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 20)
+                        
+                        Circle()
+                            .trim(from: 0, to: percent("あっさり系"))//0 ~ あっさり系 %までtrim
+                            .stroke(Color.blue, style: StrokeStyle(lineWidth: 20, lineCap: .round))//太さ20のリングチャートを作る
+                            .rotationEffect(.degrees(-90))//デフォルトだと3時スタート
+                        
+                        Circle()
+                            .trim(from: percent("あっさり系"),
+                                  to: percent("あっさり系") + percent("こってり系"))//あっさり系 %から ~ あっさり系 + こってり系%までtrim
+                            .stroke(Color.red, style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        Circle()
+                            .trim(from: percent("あっさり系") + percent("こってり系"),
+                                  to: 1)
+                            .stroke(Color.green, style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        
+                        VStack {
+                            Text("合計")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Text("\(visitcount)")
+                                .font(.title)
+                                .bold()
+                        }
+                    }
+                    .frame(width: 180, height: 180)
+                    
+                    .navigationBarBackButtonHidden(true)
+                    
+                    
+                    // ======================
+                    // 📊 内訳
+                    // ======================
+                    VStack(spacing: 14) {
+                        typeLegend(color: .blue, title: "あっさり系")
+                        typeLegend(color: .red, title: "こってり系")
+                        typeLegend(color: .green, title: "バランス系")
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .shadow(radius: 5)
+                    
+                    // ======================
+                    // 🗾 都道府県ランキング
+                    // ======================
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("よく行くエリア")
+                            .font(.headline)
+                        
+                        ForEach(displayPrefCount, id: \.key) { item in
+                            HStack {
+                                Text(item.key)
+                                    .font(.body)
+                                
+                                Spacer()
+                                
+                                Text("\(Int(Double(item.value) * 100 / Double(max(visitcount,1))))%")
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            ProgressView(value: Double(item.value),
+                                         total: Double(max(visitcount,1)))//進捗度をバーで!
+                            .tint(.orange)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .shadow(radius: 5)
+                    
+                }
+                .padding()
+            }
+        }
+        
+        
+        .sheet(isPresented: $isramentypeview) {
+            RamenTypeView(isramentypeview: $isramentypeview)
+        }
+        
+        
+        .toolbar {
+            
+            ToolbarItem(placement: .topBarLeading) {
+                
+                Button("< 戻る") {
+                    presentationMode.wrappedValue.dismiss()  //ここでトリガーをオンにして戻っても良いけど引数関連があると面倒臭い から一つ戻るだけにする
+                }
+            }
+        }//toolbar
+        
+        .background(EnableSwipeBackGesture2()) // ←ここを追加
+        
+
+        .onAppear {
+            DispatchQueue.main.async{
+                recalc()
+            }
+        }
+    }
+    func typeLegend(color: Color, title: String) -> some View {
+        let p = percent(title)
+
+        return HStack {
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+
+            Text(title)
+
+            Spacer()
+
+            Text("\(Int(p * 100))%")
+                .bold()
+        }
+    }
+    // MARK: - 超重要：ここが本体（UIと完全分離）
+    func recalc() {
+
+        let data = Array(visitramendatabase)
+
+        var genreCount: [String:Int] = [:]
+        var prefCount: [String:Int] = [:]
+        var typeCount = ["あっさり系":0,"こってり系":0,"バランス系":0]
+
+        for ramen in data {
+
+            genreCount[ramen.genre, default: 0] += 1
+            prefCount[ramen.prefecture, default: 0] += 1
+
+            switch ramen.genre {
+            case "塩", "醤油":
+                typeCount["あっさり系", default: 0] += 1
+            case "二郎系", "家系", "豚骨":
+                typeCount["こってり系", default: 0] += 1
+            default:
+                typeCount["バランス系", default: 0] += 1
+            }
+        }
+
+        let total = data.count
+
+        let sortedPref = prefCount
+            .sorted { $0.value > $1.value }
+            .prefix(2)
+
+        let resultType = decideType(typeCount: typeCount,
+                                    prefSorted: sortedPref.map{$0.value},
+                                    total: total)
+
+        // 🔥 state更新は最後に1回だけ
+        DispatchQueue.main.async {
+            self.visitcount = total
+            self.displayPrefCount = Array(sortedPref)
+            self.displaytypeCount = typeCount
+            self.mytype = resultType
+        }
+    }
+
+    func decideType(typeCount: [String:Int],
+                    prefSorted: [Int],
+                    total: Int) -> String {
+
+        guard total > 0 else { return "判定不可" }
+
+        let a = Double(typeCount["あっさり系"] ?? 0) / Double(total)
+        let k = Double(typeCount["こってり系"] ?? 0) / Double(total)
+        let b = Double(typeCount["バランス系"] ?? 0) / Double(total)
+
+        let concentration = Double(prefSorted.reduce(0,+)) / Double(total)
+
+        if a >= 0.5 {
+            return concentration >= 0.85 ? "おしゃれ勢" : "まったり勢"
+        } else if k >= 0.5 {
+            return concentration >= 0.85 ? "地元ガチ勢" : "遠征ジャンキー"
+        } else if b >= 0.5 {
+            return concentration >= 0.85 ? "安定志向" : "ラーメントラベラー"
+        }
+
+        return "究極のバランサー"
+    }
+
+    func percent(_ key: String) -> Double {
+        let v = displaytypeCount[key, default: 0]
+        return visitcount == 0 ? 0 : Double(v) / Double(visitcount)
+    }
+}
+*/
+
+final class HanteiViewModel: ObservableObject {
+
+    @Published var visitcount = 0
+    @Published var displayPrefCount: [(String, Int)] = []
+    @Published var displaytypeCount: [String:Int] = [:]
+    @Published var mytype = ""
+    @Published var isLoading: Bool = true
+    // 👇 円グラフ用（ここ重要）
+    @Published var asari: Double = 0
+    @Published var kotteri: Double = 0
+    @Published var balance: Double = 0
+
+    func recalc(data: [VRamenDatabase]) {
+
+        DispatchQueue.global(qos: .userInitiated).async {
+
+            var pref: [String:Int] = [:]
+            var type = ["あっさり系":0,"こってり系":0,"バランス系":0]
+
+            for r in data {
+
+                pref[r.prefecture, default: 0] += 1
+
+                switch r.genre {
+                case "塩", "醤油":
+                    type["あっさり系", default: 0] += 1
+                case "二郎系", "家系", "豚骨":
+                    type["こってり系", default: 0] += 1
+                default:
+                    type["バランス系", default: 0] += 1
+                }
+            }
+
+            let total = data.count
+            let sorted = pref.sorted { $0.value > $1.value }.prefix(2)
+
+            let a = Double(type["あっさり系"] ?? 0) / Double(max(total,1))
+            let k = Double(type["こってり系"] ?? 0) / Double(max(total,1))
+            let b = Double(type["バランス系"] ?? 0) / Double(max(total,1))
+
+            let result = self.decideType(a: a, k: k, b: b)
+
+            DispatchQueue.main.async {
+                self.visitcount = total
+                self.displayPrefCount = Array(sorted)
+                self.displaytypeCount = type
+                self.mytype = result
+
+                // 👇円グラフ用固定値
+                self.asari = a
+                self.kotteri = k
+                self.balance = b
+                
+                self.isLoading = false
+            }
+            
+        }
+    }
+
+    func decideType(a: Double, k: Double, b: Double) -> String {
+        if a >= 0.5 { return "まったり勢" }
+        if k >= 0.5 { return "遠征ジャンキー" }
+        if b >= 0.5 { return "安定志向" }
+        return "バランサー"
+    }
+}
+
+/*
+@MainActor
+final class HanteiViewModel: ObservableObject {
+
+    @Published var visitcount = 0
+    @Published var displayPrefCount: [(String, Int)] = []
+    @Published var displaytypeCount: [String:Int] = [:]
+    @Published var mytype = ""
+    @Published var isLoading = true
+
+    @Published var asari: Double = 0
+    @Published var kotteri: Double = 0
+    @Published var balance: Double = 0
+
+    func recalc(data: [VRamenDatabase]) {
+
+        isLoading = true
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+
+            var pref: [String:Int] = [:]
+            var type = ["あっさり系":0,"こってり系":0,"バランス系":0]
+
+            for r in data {
+                pref[r.prefecture, default: 0] += 1
+
+                switch r.genre {
+                case "塩", "醤油":
+                    type["あっさり系", default: 0] += 1
+                case "二郎系", "家系", "豚骨":
+                    type["こってり系", default: 0] += 1
+                default:
+                    type["バランス系", default: 0] += 1
+                }
+            }
+
+            let total = data.count
+            let sorted = pref.sorted { $0.value > $1.value }.prefix(2)
+
+            let a = Double(type["あっさり系"] ?? 0) / Double(max(total,1))
+            let k = Double(type["こってり系"] ?? 0) / Double(max(total,1))
+            let b = Double(type["バランス系"] ?? 0) / Double(max(total,1))
+
+            let result = self.decideType(a: a, k: k, b: b)
+
+            await MainActor.run {
+                self.visitcount = total
+                self.displayPrefCount = Array(sorted)
+                self.displaytypeCount = type
+                self.mytype = result
+
+                self.asari = a
+                self.kotteri = k
+                self.balance = b
+
+                self.isLoading = false
+            }
+        }
+    }
+
+    func decideType(a: Double, k: Double, b: Double) -> String {
+        if a >= 0.5 { return "まったり勢" }
+        if k >= 0.5 { return "遠征ジャンキー" }
+        if b >= 0.5 { return "安定志向" }
+        return "バランサー"
+    }
+}
+ */
+struct HanteiView: View {
+
+    @Environment(\.presentationMode) var presentationMode
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    @StateObject var vm = HanteiViewModel()
+
+    @State var isramentypeview = false
+    
+    var body: some View {
+
+        ZStack {
+
+            LinearGradient(
+                colors: [Color.orange.opacity(0.3), Color.yellow.opacity(0.15)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            if vm.isLoading {
+
+                VStack {
+                    ProgressView()
+                    Text("分析中...")
+                        .foregroundColor(.gray)
+                }
+
+            } else {
+
+                ScrollView {
+
+                    VStack(spacing: 28) {
+
+                        // ===== HERO（完全維持）=====
+                        VStack(spacing: 10) {
+
+                            Text("診断結果")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+
+                            Text(vm.mytype)
+                                .font(.system(size: 34, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.orange, .red],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                            
+                            Button {
+                                isramentypeview.toggle()
+                            } label: {
+                                Text("タイプ一覧を見る")
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.orange.opacity(0.15))
+                                    .cornerRadius(10)
+                            }
+                            
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(24)
+
+                        // ===== 🍜 円グラフ（そのまま）=====
+                        ZStack {
+
+                            Circle()
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 20)
+
+                            Circle()
+                                .trim(from: 0, to: vm.asari)
+                                .stroke(Color.blue,
+                                        style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+
+                            Circle()
+                                .trim(from: vm.asari, to: vm.asari + vm.kotteri)
+                                .stroke(Color.red,
+                                        style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+
+                            Circle()
+                                .trim(from: vm.asari + vm.kotteri, to: 1)
+                                .stroke(Color.green,
+                                        style: StrokeStyle(lineWidth: 20, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+
+                            VStack {
+                                Text("訪問店数")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+
+                                Text("\(vm.visitcount)")
+                                    .font(.title)
+                                    .bold()
+                            }
+                        }
+                        .frame(width: 180, height: 180)
+
+                        // ===== 📊 内訳（🔥ここだけ修正）=====
+                        VStack(spacing: 14) {
+
+                            ForEach(Array(vm.displaytypeCount.keys), id: \.self) { key in
+
+                                HStack {
+                                    Circle()
+                                        .fill(color(for:key))
+                                        .frame(width: 10, height: 10)
+
+                                    Text(key)
+
+                                    Spacer()
+
+                                    let value = vm.displaytypeCount[key] ?? 0
+
+                                    Text("\(vm.visitcount == 0 ? 0 : value * 100 / vm.visitcount)%")
+                                        .bold()
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(20)
+                        .shadow(radius: 5)
+
+                        // ===== 🗾 都道府県ランキング（そのまま）=====
+                        VStack(alignment: .leading, spacing: 14) {
+
+                            Text("よく行くエリア")
+                                .font(.headline)
+
+                            ForEach(vm.displayPrefCount, id: \.0) { item in
+
+                                HStack {
+                                    Text(item.0)
+                                    Spacer()
+
+                                    Text("\(Int(Double(item.1) * 100 / Double(max(vm.visitcount,1))))%")
+                                        .foregroundColor(.orange)
+                                }
+
+                                ProgressView(
+                                    value: Double(item.1),
+                                    total: Double(max(vm.visitcount,1))
+                                )
+                                .tint(.orange)
+                            }
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(20)
+                        .shadow(radius: 5)
+                    }
+                    .padding()
+                }
+            }
+        }
+        .onAppear {
+            vm.isLoading = true
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                vm.recalc(data: Array(visitramendatabase))
+                vm.isLoading = false
+            }
+        }
+        .sheet(isPresented: $isramentypeview) {
+            RamenTypeView(isramentypeview: $isramentypeview)
+        }
+    }//body
+    
+    func color(for key: String) -> Color {
+        switch key {
+        case "あっさり系":
+            return .blue
+        case "こってり系":
+            return .red
+        case "バランス系":
+            return .green
+        default:
+            return .gray
+        }
+    }
+}
+struct EnableSwipeBackGesture2: UIViewControllerRepresentable {//UIViewControllerは監督
+func makeUIViewController(context: Context) -> UIViewController {
+let controller = UIViewController()
+DispatchQueue.main.async {
+controller.navigationController?.interactivePopGestureRecognizer?.delegate = nil
+}
+return controller
+}
+
+func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+
+
+    
+
+
+
+struct RamenTypeView: View {
+    
+    @State var typelist: [RamenType] = [
+        RamenType(name: "まったり勢", description: "並ばず急がず遠出しない 喫茶店のようなゆるラーメンスタイル"),
+        RamenType(name: "おしゃれ勢", description: "インスタ映えもチェック! 新世代のラーメンスタイル"),
+        RamenType(name: "地元ガチ勢", description: "気に入ったお店へ通い詰める ガッツリラーメンスタイル"),
+        RamenType(name: "遠征ジャンキー", description: "好きなもののためならどこへでも 行動力の化身"),
+        RamenType(name: "安定思考", description: "冒険より安心 外さない一杯を求める堅実スタイル"),
+        RamenType(name: "ラーメントラベラー", description: "ラーメンと旅行はセット 土地ごとのラーメンを味わい尽くすスタイル"),
+        RamenType(name: "究極のバランサー", description: "満遍なくラーメンを食べる 究極のラーメン好き")
+    ]
+    
+    @Binding var isramentypeview: Bool
+    
+    var body: some View {
+        
+        ZStack {
+            
+            LinearGradient(
+                colors: [Color.orange.opacity(0.25), Color.yellow.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            
+            VStack(spacing: 16) {
+                Spacer()
+                    .frame(height:10)
+                Text("タイプ一覧")
+                    .font(.title)
+                
+                ScrollView {
+                    ForEach(typelist) { type in
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            
+                            Text(type.name)
+                                .font(.title3)
+                                .bold()
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.orange, .red],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                            
+                            Text(type.description)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .fixedSize(horizontal: false, vertical: true)//縦方向の折り返し可
+                            
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.08), radius: 5, x: 0, y: 3)
+                        .padding(.horizontal)
+                    }
+                    
+                    .padding(.vertical)
+                }
+                
+                
+            }
+        }
+        
+    }
+}
+
+struct RamenType: Identifiable {//こういう感じで単なる配列じゃなくて意味を持たせたほうが可読性が高い!!!!
+    let id = UUID()
+    let name: String
+    let description: String
+}
+
+
+
+/*良いUIを作るためのコアテクニック
+① 情報の「階層」を作る（最重要）
+
+👉 ユーザーは全部読まない。上から順に“見る”
+
+ルール
+1番見せたい → デカく・太く
+補足 → 小さく・薄く
+ 
+ ②カードUI（とりあえずこれやればOK）
+ 
+ 
+ ポイント
+ 角丸：16〜24
+ 影：弱め（強すぎNG）
+ 背景：白 or Material
+
+ 👉 “まとまり感”が出る
+ 
+ ⑤ “視覚化”を入れる（テキストだけNG）
+
+ 👉 数字はグラフにする
+
+ 例
+ ProgressView
+ バー
+ 円グラフ
+ 
+ ⑥ 揃える（アラインメント命）
+
+ 👉 ズレてると一気に素人感
+
+ ダメ例
+ 左揃えと中央揃えが混在
+ 
+ ⑩ “意味のあるUI”にする
+
+ これが一番大事👇
+
+ 見た目じゃなくて「何を伝えたいか」
+
+ 例えば：
+
+ グラフ → 傾向を伝える
+ 称号 → 成長を伝える
+
+ 👉 意味があると自然と良くなる
+ 
+ 
+ 
+ 見習い → 常連 → 探求者 → 職人 → 覇者
+ */
+
+
+
