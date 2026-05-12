@@ -4,17 +4,17 @@
 //
 //  Created by user on 2025/12/19.
 //
-import CoreLocation//GPSを扱う(iosと)
+import CoreLocation//GPSを扱う
 import MapKit
 import SwiftUI
 
 final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {//ObservableObjectはPublishedを使うため CLLocationMangereDelegateは受け取れたかの通知を受け取る役を作る
     
-    private let manager = CLLocationManager()//ユーザの現在地を取ってくる本体
+    private let manager = CLLocationManager()//位置情報を扱うクラス/プロトコル
     
-    @Published var didSetInitialRegion = false
+    @Published var didSetInitialRegion = false// SwiftUIに通知するフラグ（初回取得済みか）
     
-    //@Published var region: MKCoordinateRegion?//Publishedはクラス変数が変わったらそれを使っているviewに対しても通知してやる SwiftUiに渡すデータ Mapkit型
+    //@Published var region: MKCoordinateRegion?// 地図の表示領域（SwiftUIにバインドされる） 初期化
     @Published var region: MKCoordinateRegion = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
             span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
@@ -23,38 +23,36 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     
     override init() {
         super.init()//NSObjectの初期設定
-        manager.delegate = self//少なくともこのメソッドにおいてはmanagerは取得しても持ってるだけ -> delegateで設定したものだけに知らせるようになっている selfは自クラス
-        manager.desiredAccuracy = kCLLocationAccuracyBest//情報制度の設定
-        manager.requestWhenInUseAuthorization()//位置情報許可リクエスト
-        manager.startUpdatingLocation()//位置情報の取得開始
+        manager.delegate = self//managerの取得情報とこのクラスインスタンスの橋渡し delegate登録
+        manager.desiredAccuracy = kCLLocationAccuracyBest//精度の決定
+        manager.requestWhenInUseAuthorization()//位置情報許可リクエスト  
+        manager.startUpdatingLocation()//位置情報の取得開始 (非同期) 
     }
     
-    //位置情報が取得できたら自動でCoreLocationが呼ぶ
+    //位置情報が取得 => CoreLocation => locationManagerを呼ぶ
 
     func requestLocation() {
-            manager.requestLocation()//位置情報取得を一回だけ行う
+            manager.requestLocation()// 手動で1回だけ位置取得したいとき
         }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.first else { return }
-        didSetInitialRegion = true//フラグ　
+        guard let location = locations.first else { return }// 最新の現在位置を取得
+        didSetInitialRegion = true// 初回取得フラグ
         
-        region = MKCoordinateRegion( center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) )
+        region = MKCoordinateRegion( center: location.coordinate, span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) )//取得した地図の表示領域
         manager.stopUpdatingLocation()
         
     }
     
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {//位置情報取得失敗
             print(error)
         }
-    func startUpdatingLocation() {//何故噛ませる？
+
+    func startUpdatingLocation() {// 外から更新再開したいとき用
         manager.startUpdatingLocation()
     }
     
 }
 
-//@StateObjectに対して再代入は不可能
 
 
-
-//クラスのインスタンスを参照 => 値が変わる => クラス自体は変わらない => その値を使っているViewの再構成が行われるだけです　だからclassの中の他の値とかは変わらない
