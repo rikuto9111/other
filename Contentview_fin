@@ -1,4 +1,4 @@
-むじいな
+①大きな設計思想として@Bindingとかでもそうだけど　同じ種類の変数は同じような場所においておくとまとめやすいしみやすい!!
 
 import SwiftUI
 import MapKit // 地図（GoogleMap的なもの。Apple純正）
@@ -6,35 +6,31 @@ import CoreLocation
 import RealmSwift
 import Charts // グラフ用
 
-// ======================================================
-// MARK: - ラーメンマップ用カスタムピンView
-// ======================================================
-struct RamenAnnotation: View {
 
-    // -----------------------------
+// - ラーメンマップ用カスタムアイコンView
+
+struct RamenAnnotation: View {
     // 店情報（表示用）
-    // -----------------------------
+
     var rating: Double
     var name: String
-    var isstate: Bool
+    var isstate: Bool  // 営業しているか否か
 
-    // -----------------------------
-    // 親Viewへ状態を返すBinding群
-    // -----------------------------
-    @Binding var isTap: Bool
-    @Binding var shopname: String
-    @Binding var selectshopregularhours: [String]
-    @Binding var targetdestination: CLLocationCoordinate2D
-    @Binding var selectrating: Double
-    @Binding var selectshopstate: Bool
-    @Binding var isvisititem: Bool
-    @Binding var visitid: ObjectId?
-    @Binding var selimpress: String
-    @Binding var visititemnum: Int
+    // Contentviewへ状態を返すBinding群
 
-    // -----------------------------
+    @Binding var isTap: Bool   // ラーメンアイコンの選択状態
+    @Binding var shopname: String 
+    @Binding var selectshopregularhours: [String] // 営業時間
+    @Binding var targetdestination: CLLocationCoordinate2D  // 選択したお店の座標(緯度・経度)
+    @Binding var selectrating: Double // Google評価
+    @Binding var selectshopstate: Bool  // 営業中か否か
+    @Binding var isvisititem: Bool // そのお店が訪問済みか
+    @Binding var visitid: ObjectId? 
+    @Binding var selimpress: String // 訪問済みアイテムの感想
+    @Binding var visititemnum: Int // 訪問回数
+
     // 店固有データ
-    // -----------------------------
+
     var shopregularhours: [String]
     var destination: CLLocationCoordinate2D
     var isvisited: Bool
@@ -47,10 +43,7 @@ struct RamenAnnotation: View {
         let realm = try! Realm()
 
         Button {
-
-            // ==================================================
-            // タップ時：親Viewへデータを受け渡し
-            // ==================================================
+            // タップ時：Contentviewへデータを受け渡し
 
             shopname = name
             targetdestination = destination
@@ -59,9 +52,8 @@ struct RamenAnnotation: View {
             selectshopstate = isstate
             isvisititem = isvisited
 
-            // -----------------------------
-            // 訪問済みデータがある場合
-            // -----------------------------
+            // 訪問済みデータがある場合   (id,感想,訪問回数)
+
             if let vid = visitedid {
 
                 visitid = vid
@@ -75,16 +67,14 @@ struct RamenAnnotation: View {
                 }
             }
 
-            // ピン選択状態を切り替え
+            // アイコン選択状態を切り替え
             isTap.toggle()
 
         } label: {
 
             VStack(spacing: 4) {
 
-                // =========================
-                // ピン本体
-                // =========================
+                // アイコン本体
                 ZStack(alignment: .topTrailing) {
 
                     Image(isstate ? "ramen" : "noramen")
@@ -101,9 +91,8 @@ struct RamenAnnotation: View {
                     }
                 }
 
-                // -----------------------------
                 // 自己評価（訪問済みのみ）
-                // -----------------------------
+
                 if let vrating = visitrating {
                     Text("⭐️\(vrating, specifier: "%.1f")")
                         .font(.system(size: 10, weight: .medium))
@@ -122,9 +111,7 @@ struct RamenAnnotation: View {
 }
 
 
-// ======================================================
-// MARK: - ジャンル定義
-// ======================================================
+//  - ジャンル定義
 enum RamenGenre: String, CaseIterable {
     case shoyu = "醤油"
     case miso = "味噌"
@@ -150,9 +137,8 @@ enum RamenGenre2: String, CaseIterable {
 }
 
 
-// ======================================================
-// MARK: - 非同期キュー（未使用 or 実験用）
-// ======================================================
+//- 非同期キュー（未使用 or 実験用）
+
 actor SearchQueue {
     func run(_ block: @escaping () async -> Void) async {
         await block()
@@ -160,9 +146,8 @@ actor SearchQueue {
 }
 
 
-// ======================================================
-// MARK: - クラスタリング用モデル
-// ======================================================
+// - クラスタリング用モデル
+
 struct ClusterShop: Identifiable {
     let id = UUID()
     let coordinate: CLLocationCoordinate2D
@@ -178,22 +163,22 @@ struct RegionKey: Equatable {
 }
 
 
-// ======================================================
-// MARK: - レベル表示UI
-// ======================================================
+// - レベル表示UI
+
 struct RingProgressView: View {
 
     var level: Int
-    var shougou: String
-    var progress: Double
-    var visitcount: Int
+    var shougou: String  
+    var progress: Double  // そのレベルでの進捗度
+    var visitcount: Int // 訪問回数
 
     var body: some View {
 
         VStack(spacing: 15) {
 
-            ZStack {
+            ZStack { 
 
+        //リンググラフ
                 Circle()
                     .stroke(Color.gray.opacity(0.2), lineWidth: 10)
 
