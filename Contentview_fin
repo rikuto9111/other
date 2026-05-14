@@ -1,52 +1,567 @@
+むじいな
+
+import SwiftUI
+import MapKit // 地図（GoogleMap的なもの。Apple純正）
+import CoreLocation
+import RealmSwift
+import Charts // グラフ用
+
+// ======================================================
+// MARK: - ラーメンマップ用カスタムピンView
+// ======================================================
+struct RamenAnnotation: View {
+
+    // -----------------------------
+    // 店情報（表示用）
+    // -----------------------------
+    var rating: Double
+    var name: String
+    var isstate: Bool
+
+    // -----------------------------
+    // 親Viewへ状態を返すBinding群
+    // -----------------------------
+    @Binding var isTap: Bool
+    @Binding var shopname: String
+    @Binding var selectshopregularhours: [String]
+    @Binding var targetdestination: CLLocationCoordinate2D
+    @Binding var selectrating: Double
+    @Binding var selectshopstate: Bool
+    @Binding var isvisititem: Bool
+    @Binding var visitid: ObjectId?
+    @Binding var selimpress: String
+    @Binding var visititemnum: Int
+
+    // -----------------------------
+    // 店固有データ
+    // -----------------------------
+    var shopregularhours: [String]
+    var destination: CLLocationCoordinate2D
+    var isvisited: Bool
+    var visitedid: ObjectId?
+    var visitrating: Double?
+
+    var body: some View {
+
+        // Realm（このピンタップ時に参照）
+        let realm = try! Realm()
+
+        Button {
+
+            // ==================================================
+            // タップ時：親Viewへデータを受け渡し
+            // ==================================================
+
+            shopname = name
+            targetdestination = destination
+            selectrating = rating
+            selectshopregularhours = shopregularhours
+            selectshopstate = isstate
+            isvisititem = isvisited
+
+            // -----------------------------
+            // 訪問済みデータがある場合
+            // -----------------------------
+            if let vid = visitedid {
+
+                visitid = vid
+
+                if let object = realm.object(
+                    ofType: VRamenDatabase.self,
+                    forPrimaryKey: vid
+                ) {
+                    selimpress = object.isimpress
+                    visititemnum = object.visitnumber
+                }
+            }
+
+            // ピン選択状態を切り替え
+            isTap.toggle()
+
+        } label: {
+
+            VStack(spacing: 4) {
+
+                // =========================
+                // ピン本体
+                // =========================
+                ZStack(alignment: .topTrailing) {
+
+                    Image(isstate ? "ramen" : "noramen")
+                        .resizable()
+                        .frame(width: 34, height: 34)
+
+                    // 訪問済みバッジ
+                    if isvisited {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.green)
+                            .background(Color.white.clipShape(Circle()))
+                            .offset(x: 6, y: -6)
+                    }
+                }
+
+                // -----------------------------
+                // 自己評価（訪問済みのみ）
+                // -----------------------------
+                if let vrating = visitrating {
+                    Text("⭐️\(vrating, specifier: "%.1f")")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.black.opacity(0.7))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.white.opacity(0.9))
+                        .cornerRadius(6)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(width: 80, height: 70, alignment: .bottom)
+        .offset(y: -35)
+    }
+}
+
+
+// ======================================================
+// MARK: - ジャンル定義
+// ======================================================
+enum RamenGenre: String, CaseIterable {
+    case shoyu = "醤油"
+    case miso = "味噌"
+    case shio = "塩"
+    case tonkotsu = "豚骨"
+    case iekei = "家系"
+    case jiro = "二郎系"
+    case tsukemen = "つけ麺"
+    case other = "その他"
+}
+
+// 「全て」あり版（フィルタ用）
+enum RamenGenre2: String, CaseIterable {
+    case all = "全て"
+    case shoyu = "醤油"
+    case miso = "味噌"
+    case shio = "塩"
+    case tonkotsu = "豚骨"
+    case iekei = "家系"
+    case jiro = "二郎系"
+    case tsukemen = "つけ麺"
+    case other = "その他"
+}
+
+
+// ======================================================
+// MARK: - 非同期キュー（未使用 or 実験用）
+// ======================================================
+actor SearchQueue {
+    func run(_ block: @escaping () async -> Void) async {
+        await block()
+    }
+}
+
+
+// ======================================================
+// MARK: - クラスタリング用モデル
+// ======================================================
+struct ClusterShop: Identifiable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let count: Int
+    let shops: [RamenShop]
+}
+
+// 地図領域のキー（キャッシュ用途っぽい）
+struct RegionKey: Equatable {
+    let lat: Double
+    let lon: Double
+    let delta: Double
+}
+
+
+// ======================================================
+// MARK: - レベル表示UI
+// ======================================================
+struct RingProgressView: View {
+
+    var level: Int
+    var shougou: String
+    var progress: Double
+    var visitcount: Int
+
+    var body: some View {
+
+        VStack(spacing: 15) {
+
+            ZStack {
+
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 10)
+
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+
+                Text("Lv \(level)")
+                    .bold()
+            }
+            .frame(height: 70)
+
+            Text(shougou)
+                .font(.system(size: 20, weight: .bold, design: .serif))
+                .foregroundColor(.white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, .red],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(14)
+                .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+        }
+    }
+}
+
+
+struct ContentView: View {
+
+    // ==================================================
+    // MARK: - Location / Map / Core Services
+    // ==================================================
+
+    @StateObject private var locationManager = LocationManager()
+
+    @State private var Ramendata = RamenData()
+    @State private var SearchRamendata = SearchRamenData()
+    @State private var Locationhelper = LocationHelper()
+
+    @State var cameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+    )
+
+    // ==================================================
+    // MARK: - UI State (検索 / タップ / 表示制御)
+    // ==================================================
+
+    @FocusState private var isFocused: Bool
+    @FocusState var isSearchFocused: Bool
+
+    @State private var didFetch = false
+
+    @State var isTap = false
+    @State var searchtext: String = ""
+    @State var isSearching: Bool = false
+    @State var isFlag: Bool = false
+    @State var isSearchRamen = false
+
+    @State var shopname: String = ""
+    @State var targetdestination: CLLocationCoordinate2D =
+        CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917)
+
+    @State private var selectedShop: RamenShop? = nil
+
+    // ==================================================
+    // MARK: - Shop Info State
+    // ==================================================
+
+    @State var selectshopregularhours: [String] = []
+    @State var selectshopstate: Bool = false
+    @State var selectrating = 0.0
+
+    // ==================================================
+    // MARK: - Route State
+    // ==================================================
+
+    @State var route: MKRoute? = nil
+    @State var selecttransportation = ""
+    @State var targetroutedistance = 0.0
+    @State var targetroutetime = 0
+    @State var isTime = false
+
+    // ==================================================
+    // MARK: - Visit / Database State (Realm)
+    // ==================================================
+
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase
+    @ObservedResults(RamenDatabase.self) var ramendatabase
+    @ObservedResults(UserInfo.self) var userinfo
+
+    @State var visitedShops: [RamenShop] = []
+    @State var allShops: [RamenShop] = []
+    @State var reserveshops: [RamenShop] = []
+
+    @State var isvisit = false
+    @State var isvisititem = false
+    @State var visitid: ObjectId? = nil
+
+    @State var isvisitalert = false
+    @State var isimpress = ""
+    @State var evaluate = 0.0
+
+    @State var genre: RamenGenre = .shoyu
+    @State var selectevaluate: Double? = nil
+    @State var selectimpress: String? = nil
+
+    @State var visitlistflag = false
+
+    // ==================================================
+    // MARK: - Map Clustering / Rendering
+    // ==================================================
+
+    @State private var clusters: [ClusterShop] = []
+    @State var displayShops: [RamenShop] = []
+
+    // ==================================================
+    // MARK: - Search Control / Performance
+    // ==================================================
+
+    let searchQueue = SearchQueue()
+    @State private var searchVersion = 0
+
+    @State private var lastRegion: MKCoordinateRegion? = nil
+    @State private var debounceTask: Task<Void, Never>? = nil
+
+    // ==================================================
+    // MARK: - Navigation / Screen Control
+    // ==================================================
+
+    @State var ishanteiview = false
+    @State var isvisitanalize = false
+    @State var ismenuList = true
+    @State var isfirsttimenotice = false
+
+    // ==================================================
+    // MARK: - User Progress / Level System
+    // ==================================================
+
+    @State var level = 0
+    @State var visitcount = 0
+    @State var progress = 0.0
+    @State var res = 0
+    @State var shougou = ""
+
+    // ==================================================
+    // MARK: - Selected Detail (Map Tap Result)
+    // ==================================================
+
+    @State var selvramendata_latitude = 0.0
+    @State var selvramendata_longitude = 0.0
+
+    @State var selimpress = ""
+    @State var visititemnum = 0
+
+    @State var ishanteiview = false
+
+
+    // ==================================================
+    // MARK: - Computed Helpers
+    // ==================================================
+
+    var regionKey: RegionKey {
+        let r = locationManager.region
+        return RegionKey(
+            lat: r.center.latitude,
+            lon: r.center.longitude,
+            delta: r.span.latitudeDelta
+        )
+    }
+
+
+    // ==================================================
+    // MARK: - Body (UI Composition Only Zone)
+    // ==================================================
+    var body: some View {
+
+        NavigationStack {
+
+            NavigationLink(
+                destination: HanteiView(),
+                isActive: $ishanteiview
+            ) { }
+            .navigationBarBackButtonHidden(true)
+
+            ZStack(alignment: .top) {
+
+                // ==================================================
+                // MARK: - Map Rendering
+                // ==================================================
+                Map(
+                    coordinateRegion: $locationManager.region,
+                    showsUserLocation: true,
+                    annotationItems: clusters
+                ) { cluster in
+
+                    MapAnnotation(coordinate: cluster.coordinate) {
+
+                        // 単体ショップ
+                        if cluster.count == 1 {
+
+                            let shop = cluster.shops[0]
+
+                            RamenAnnotation(
+                                rating: shop.rating,
+                                name: shop.name,
+                                isstate: shop.isOpenNow,
+                                isTap: $isTap,
+                                shopname: $shopname,
+                                shopregularhours: shop.regularHours!,
+                                selectshopregularhours: $selectshopregularhours,
+                                targetdestination: $targetdestination,
+                                destination: shop.coordinate,
+                                selectrating: $selectrating,
+                                selectshopstate: $selectshopstate,
+                                isvisited: shop.isvisited,
+                                isvisititem: $isvisititem,
+                                visitid: $visitid,
+                                visitedid: shop.vid,
+                                visitrating: shop.visitrating,
+                                selimpress: $selimpress,
+                                visititemnum: $visititemnum
+                            )
+
+                        } else {
+
+                            let shop = cluster.shops[0]
+
+                            RamenAnnotation(
+                                rating: shop.rating,
+                                name: shop.name,
+                                isstate: shop.isOpenNow,
+                                isTap: $isTap,
+                                shopname: $shopname,
+                                shopregularhours: shop.regularHours!,
+                                selectshopregularhours: $selectshopregularhours,
+                                targetdestination: $targetdestination,
+                                destination: shop.coordinate,
+                                selectrating: $selectrating,
+                                selectshopstate: $selectshopstate,
+                                isvisited: shop.isvisited,
+                                isvisititem: $isvisititem,
+                                visitid: $visitid,
+                                visitedid: shop.vid,
+                                visitrating: shop.visitrating,
+                                selimpress: $selimpress,
+                                visititemnum: $visititemnum
+                            )
+                            .overlay {
+                                Text("\(cluster.count)")
+                                    .padding(6)
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                }
+
+                // ==================================================
+                // MARK: - Region Change + Debounce Update Logic
+                // ==================================================
+                .onChange(of: regionKey) { _ in
+
+                    debounceTask?.cancel()
+
+                    debounceTask = Task {
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        if Task.isCancelled { return }
+
+                        let newRegion = locationManager.region
+                        if !shouldUpdateRegion(newRegion) { return }
+
+                        lastRegion = newRegion
+
+                        await MainActor.run {
+                            updateDisplayShops()
+                            updateClusters()
+                        }
+                    }
+                }
+
+                .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import SwiftUI
 import MapKit //GoogleMap的な　有料のライブラリ
 import CoreLocation
 import RealmSwift
 
-import Charts//グラフ用
+import Charts//グラフ用　ライブラリ
+
 // 店情報モデル
 
-
 // カスタムピン
-struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageがある
-    var rating: Double
-    var name:String
-    var isstate:Bool
-    //var number:String
-    @Binding var isTap:Bool
-    @Binding var shopname:String
+struct RamenAnnotation: View { // ラーメンアイコン お店の情報
+
+    var rating: Double // お店のGoogle評価
+    var name:String // 店名
+    var isstate:Bool // 開店しているか否か
+
+    @Binding var isTap:Bool // タップされたかどうか
+    @Binding var shopname:String // ContentViewに選択したお店の情報を渡すためにBindingしている
     
-    var shopregularhours:[String]
+    var shopregularhours:[String] // 営業時間
     @Binding var selectshopregularhours:[String]
     
-    @Binding var targetdestination:CLLocationCoordinate2D
+    @Binding var targetdestination:CLLocationCoordinate2D // 座標
     var destination:CLLocationCoordinate2D
     
-    @Binding var selectrating:Double//Google
+    @Binding var selectrating:Double // Google 評価
     
-    @Binding var selectshopstate:Bool
+    @Binding var selectshopstate:Bool 
     
-    var isvisited:Bool
+    var isvisited:Bool  // お店が訪問済みか否か
+
     @Binding var isvisititem:Bool
     
-    @Binding var visitid:ObjectId?//初期値が入ってしまっているね
+    @Binding var visitid:ObjectId? //訪問済みお店ID 引き渡し用
     
-    var visitedid:ObjectId?
+    var visitedid:ObjectId? //訪問済みお店ID 
     
     var visitrating:Double?//自己評価
     
     @Binding var selimpress:String
     
     @Binding var visititemnum:Int
-    
-    //@Binding var phonenumber:String
 
     
     var body: some View {
         
         let realm = try! Realm()
         
-        Button {
+        Button { // アイコンを選択した時
             // ===== データ受け渡し =====
             shopname = name
             targetdestination = destination
@@ -55,8 +570,8 @@ struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageが�
             selectshopstate = isstate
             isvisititem = isvisited
 
-            if let vid = visitedid {
-                visitid = vid
+            if let vid = visitedid { // そのお店が訪問済みなら
+                visitid = vid // 受け渡す
                 
                 
                 
@@ -67,7 +582,7 @@ struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageが�
                 
             }
 
-            isTap.toggle()
+            isTap.toggle() //　このビューを閉じる
 
         } label: {
 
@@ -119,7 +634,7 @@ struct RamenAnnotation: View {//こいつ自身表示させる型 Text imageが�
     }
 }
 
-struct RamenAnnotation_2: View {//こいつ自身表示させる型 Text imageがある
+struct RamenAnnotation_2: View {//使ってない
     var rating: Double
     var name:String
 
@@ -177,14 +692,14 @@ enum RamenGenre2: String, CaseIterable {//RamenGenreにcase allを加えたも�
 }
 
 
-actor SearchQueue {
+actor SearchQueue { // ??? 
     func run(_ block: @escaping () async -> Void) async {
         await block()
     }
 }
 
 
-struct ClusterShop: Identifiable {
+struct ClusterShop: Identifiable { 
     let id = UUID()
     let coordinate: CLLocationCoordinate2D
     let count: Int
@@ -247,61 +762,61 @@ struct RingProgressView: View {
 
 
 
-struct ContentView: View {
-    @StateObject private var locationManager = LocationManager()//現在では一回だけLocationMangerを呼び出し　呼び出すとcenterをセッティングする
-    @State private var Ramendata = RamenData()
-    @State private var SearchRamendata = SearchRamenData()
-    @State private var Locationhelper = LocationHelper()
+struct ContentView: View { // 初期画面 mainビュー
+
+    @StateObject private var locationManager = LocationManager()//現在では一回だけLocationMangerを呼び出し　呼び出すと現在地をcenterにセッティングする
+    @State private var Ramendata = RamenData() // 初期化 周辺検索用
+    @State private var SearchRamendata = SearchRamenData() //　初期化 クエリ検索用
+    @State private var Locationhelper = LocationHelper() //初期化　インスタンス生成 住所 => 座標対応
+     
     
-    
-    @FocusState private var isFocused: Bool
+    @FocusState private var isFocused: Bool  // 検索ボックスのフォーカス
     
     
     @State private var didFetch = false
-    @State var isTap = false//アイコンをタップしたかどうかの判定
+    @State var isTap = false //アイコンをタップしたかどうかの判定
     @State var searchtext:String = ""//検索クエリ
     
     
-    @State var cameraPosition:MapCameraPosition = .region(MKCoordinateRegion(
+    @State var cameraPosition:MapCameraPosition = .region(MKCoordinateRegion( //　何これ？　使ってたっけ？
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
     ))
 
-    @State var shopname:String = ""
-    @State var targetdestination:CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917)
+    @State var shopname:String = "" // お店名 
+
+    @State var targetdestination:CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917) // ルート検索の時の目的地
     
-    @State var isSearching:Bool = false
-    @State var isFlag:Bool = false
-    @State var isSearchRamen = false
+    @State var isSearching:Bool = false // 検索中
+    @State var isFlag:Bool = false // 
+    @State var isSearchRamen = false // 検索されたか否かの判定とビュー表示？
     
-    @State private var selectedShop:RamenShop? = nil
+    @State private var selectedShop:RamenShop? = nil // 選択されたお店
     
-    @State var selectshopregularhours:[String] = []
-    @State var selectshopstate:Bool = false
+    @State var selectshopregularhours:[String] = [] // 選択されたお店の営業時間
+    @State var selectshopstate:Bool = false // 選択されたお店の営業状態
     
-    @State var route:MKRoute? = nil
-    @State var selecttransportation = ""
+    @State var route:MKRoute? = nil // ルート
+    @State var selecttransportation = "" // ルート用の選択交通手段
     
-    @State var selectrating = 0.0
+    @State var selectrating = 0.0 // 選択したお店の評価(Google)
     
-    @State var targetroutedistance = 0.0
-    @State var targetroutetime = 0
+    @State var targetroutedistance = 0.0 // ルートの距離
+    @State var targetroutetime = 0 //ルートまでの時間？
     
     @State var isTime = false
     
     
     
-    @State var visitedShops:[RamenShop] = []
+    @State var visitedShops:[RamenShop] = [] 
     
-    //@State var displayShops: [RamenShop] = []
     @State var allShops:[RamenShop] = []
-    
     
     @State var reserveshops:[RamenShop] = []//一時保存用の箱
     
-    @State var isvisit = false //訪問済み
+    @State var isvisit = false // 訪問済みか否か
     
-    @State var isvisititem = false//訪問済みボタン用
+    @State var isvisititem = false //訪問済みボタン用
     
     
     @State private var clusters: [ClusterShop] = []
@@ -377,31 +892,31 @@ struct ContentView: View {
     
     
     
-    @State var level = 0//これはRealmに自分データを保存しておくことにしてそこから取り出すわ
-    @State var visitcount = 0
-    @State var progress = 0.0
-    @State var res = 0
+    @State var level = 0//これはRealmに自分データを保存しておくことにしてそこから取り出すわ レベル
+    @State var visitcount = 0  // 訪問数
+    @State var progress = 0.0 //進捗度
+    @State var res = 0 // 残りあといくつ
     
     
     
     
-    @State var shougou = ""
+    @State var shougou = "" //称号
     
     
-    @State var ismenuList = true
-    
-    
-    
-    
-    @State var visititemnum = 0
+    @State var ismenuList = true //判定とかそう入ったものをまとめたリスト表示管理
     
     
     
     
+    @State var visititemnum = 0 // 
     
-    @State var isfirsttimenotice = false//初回通知
     
-    var regionKey: RegionKey {
+    
+    
+    
+    @State var isfirsttimenotice = false//初回通知用
+    
+    var regionKey: RegionKey { //計算用  何これ？
         let r = locationManager.region
         return RegionKey(
             lat: r.center.latitude,
@@ -423,13 +938,13 @@ struct ContentView: View {
         
         ZStack(alignment: .top){
 
-            Map(
+            Map( // Mapプロトコル (中心座標) ,現在地を表示するか否か , annotations表示するアイテム 
                 coordinateRegion: $locationManager.region,
-                showsUserLocation: true,
+                showsUserLocation: true, 
                 annotationItems: clusters
             ) { cluster in
 
-                MapAnnotation(coordinate: cluster.coordinate) {
+                MapAnnotation(coordinate: cluster.coordinate) { // これマップAnnotations経由しなければならないの？　なんか二度手間？
                     
                     if cluster.count == 1{
                         
