@@ -449,6 +449,390 @@ struct ContentView: View {
 
 
 
+.allowsHitTesting(!isSearching) // 検索中はMap操作を無効化
+
+VStack {
+
+    // - 検索バー
+
+    HStack {
+
+        Spacer().frame(width: 35)
+
+/*
+focusedを変数で管理する以外はhidekeyboardで無理やりフォーカスを戻す方法もある
+ただ@FocusState変数で管理した方がやりやすい？
+*/
+
+        TextField("ラーメン屋を検索", text: $searchtext)
+            .focused($isFocused)
+
+            // フォーカス状態で検索状態を制御 
+
+            .onChange(of: isFocused) { newValue in
+                isSearching = newValue
+                print(isSearching)
+            }
+
+        Spacer().frame(width: 35)
+    }
+
+    .frame(width: 370, height: 60)
+    .background(.white)
+    .cornerRadius(30)
+
+    // 検索バー上のUI（戻る / クリア）
+
+    .overlay {
+        HStack {
+
+            Spacer().frame(width: 35)
+
+            // キーボードを閉じる
+            // Button(action: { hideKeyboard() }) {
+
+            Button(action: { 
+                isFocused = False}
+                ) { // Focus状態offの方が良い気もする
+                Image(systemName: "chevron.left")  // 戻るアイコン
+            }
+            .foregroundColor(.black)
+
+            Spacer().frame(width: 310)
+
+            // テキストクリア
+            Button(action: { searchtext = "" }) {
+                Image(systemName: "xmark")
+                    .foregroundColor(.black)
+                    .padding(5)
+                    .overlay(
+                        Circle().stroke(Color.black, lineWidth: 1)
+                    )
+            }
+
+            Spacer().frame(width: 35)
+        }
+    }
+
+    // -------------------------
+    // 検索実行（Enterキー）
+    // -------------------------
+    .onSubmit {
+
+        let text = searchtext.contains("ラーメン")
+            ? searchtext
+            : "\(searchtext)ラーメン"
+
+        let center = locationManager.region.center
+
+        Task {
+            // API検索（キュー制御付き）
+            await searchQueue.run {
+                await SearchRamendata.fetch(
+                    latitude: center.latitude,
+                    longitude: center.longitude,
+                    text: text
+                )
+            }
+
+            // 検索結果表示トリガー
+            await MainActor.run {
+                isSearchRamen = true
+            }
+        }
+    }
+
+    // =====================================================
+    // MARK: - レベル表示UI
+    // =====================================================
+    Spacer().frame(height: 15)
+
+    HStack {
+
+        RingProgressView(
+            level: level,
+            shougou: shougou,
+            progress: progress,
+            visitcount: visitcount
+        )
+        .frame(width: 150, height: 150)
+
+        Spacer()
+    }
+
+    Spacer().frame(height: 100)
+
+    // =====================================================
+    // MARK: - 現在地ボタン
+    // =====================================================
+    VStack(spacing: 12) {
+
+        HStack {
+            Spacer()
+
+            Button(action: {
+                locationManager.requestLocation()
+            }) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.blue)
+                    .frame(width: 48, height: 48)
+                    .background(.white)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.15), radius: 6)
+            }
+            .padding(.trailing, 16)
+        }
+    }
+}
+
+// =========================================================
+// MARK: - 画面オーバーレイ（分析・リスト・アラート群）
+// =========================================================
+
+// -------------------------
+// 分析画面
+// -------------------------
+if isvisitanalize {
+    ZStack {
+        Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture { isvisitanalize = false }
+
+        VStack {
+            VisitAnalizeView(isvisitanalize: $isvisitanalize)
+        }
+    }
+}
+
+// -------------------------
+// 訪問リスト
+// -------------------------
+if visitlistflag {
+    ZStack {
+        Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture { visitlistflag = false }
+
+        VStack {
+            VisitList(
+                visitlistflag: $visitlistflag,
+                selvramendata_latitude: $selvramendata_latitude,
+                selvramendata_longitude: $selvramendata_longitude,
+                onChoice: {
+                    moveTo(latitude: selvramendata_latitude,
+                           longitude: selvramendata_longitude)
+                    visitlistflag = false
+                }
+            )
+            .frame(width: 390, height: 650)
+            .cornerRadius(20)
+        }
+    }
+}
+
+// -------------------------
+// 訪問登録アラート
+// -------------------------
+if isvisitalert {
+    ZStack {
+        Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture { isvisitalert = false }
+
+        VStack {
+
+            VisitAlert(
+                isimpress: $isimpress,
+                evaluate: $evaluate,
+                isvisitalert: $isvisitalert,
+                genre: $genre,
+                onSave: {
+
+                    do {
+                        let realm = try Realm()
+
+                        // =========================
+                        // 既存データ更新 / 新規作成
+                        // =========================
+                        if let vid = visitid,
+                           let object = realm.object(ofType: VRamenDatabase.self,
+                                                     forPrimaryKey: vid) {
+
+                            try realm.write {
+                                object.evaluate = evaluate
+                                object.genre = genre.rawValue
+                                object.isimpress = isimpress
+                                object.visitnumber += 1
+                                object.visitAt = Date()
+                            }
+
+                        } else {
+
+                            let newObject = VRamenDatabase()
+                            let newId = ObjectId.generate()
+
+                            newObject.id = newId
+                            newObject.name = shopname
+                            newObject.rating = selectrating
+                            newObject.isOpenNow = selectshopstate
+                            newObject.latitude = targetdestination.latitude
+                            newObject.longitude = targetdestination.longitude
+                            newObject.isimpress = isimpress
+                            newObject.evaluate = evaluate
+                            newObject.genre = genre.rawValue
+                            newObject.visitnumber = 1
+
+                            newObject.prefecture = ""
+                            newObject.city = ""
+
+                            try realm.write {
+                                realm.add(newObject)
+                            }
+
+                            visitid = newId
+                            isvisititem = true
+                            selectevaluate = evaluate
+                        }
+
+                        // UIリセット
+                        isimpress = ""
+                        evaluate = 0.0
+                        visititemnum = 0
+
+                    } catch {
+                        print("Realm error:", error)
+                    }
+
+                    // 地名補完（非同期）
+                    LocationHelper.getAreaName(
+                        latitude: targetdestination.latitude,
+                        longitude: targetdestination.longitude
+                    ) { prefecture, city in
+
+                        do {
+                            let realm = try Realm()
+
+                            if let vid = visitid,
+                               let object = realm.object(ofType: VRamenDatabase.self,
+                                                         forPrimaryKey: vid) {
+
+                                try realm.write {
+                                    object.prefecture = prefecture
+                                    object.city = city
+                                }
+                            }
+
+                        } catch {
+                            print("Realm update error:", error)
+                        }
+                    }
+
+                    // 閉じる
+                    isvisitalert = false
+                    isTap = false
+                }
+            )
+            .frame(width: 370, height: 480)
+            .background(.white)
+            .cornerRadius(20)
+        }
+    }
+    .zIndex(3)
+}
+
+// -------------------------
+// 初回未記録メッセージ
+// -------------------------
+if isfirsttimenotice {
+    ZStack {
+        Color.gray.opacity(0.3)
+            .ignoresSafeArea()
+
+        VStack(spacing: 20) {
+            Text("まだラーメンの記録がありません")
+                .font(.title2)
+
+            Text("お店をタップして記録してみよう！")
+                .font(.title2)
+
+            Button("閉じる") {
+                isfirsttimenotice = false
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 50)
+            .background(Color.blue)
+            .cornerRadius(15)
+            .foregroundColor(.white)
+        }
+        .padding(20)
+        .frame(maxWidth: 350)
+        .background(Color.white)
+        .cornerRadius(20)
+    }
+}
+
+// -------------------------
+// 店詳細（Bottom Sheet）
+// -------------------------
+if isTap {
+
+    ZStack(alignment: .bottom) {
+
+        Color.black.opacity(0.10)
+            .ignoresSafeArea()
+            .onTapGesture {
+                selectevaluate = nil
+                visitid = nil
+                isTap = false
+            }
+
+        ScrollView {
+
+            VStack(spacing: 0) {
+
+                // ===== ヘッダー =====
+                ZStack(alignment: .topTrailing) {
+
+                    HStack {
+                        Spacer().frame(width: 320)
+
+                        Button(action: {
+                            selectevaluate = nil
+                            visitid = nil
+                            isTap = false
+                        }) {
+                            Image(systemName: "xmark")
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                        }
+
+                        Spacer()
+                    }
+                }
+
+                // ===== 店情報カード =====
+                VStack(alignment: .leading, spacing: 16) {
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(shopname)
+                            .font(.title)
+                            .bold()
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+
+                            Text("\(selectrating, specifier: "%.1f")")
+                                .font(.headline)
+
+                            Text("Google")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
 
 
 
