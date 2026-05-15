@@ -39,7 +39,7 @@ struct RamenAnnotation: View {
 
     var body: some View {
 
-        // Realm（このピンタップ時に参照）
+        // Realm（このラーメンアイコンタップ時に参照）
         let realm = try! Realm()
 
         Button {
@@ -213,15 +213,13 @@ struct RingProgressView: View {
 
 struct ContentView: View {
 
-    // ==================================================
-    // MARK: - Location / Map / Core Services
-    // ==================================================
+    // - Location / Map / Core Services
 
-    @StateObject private var locationManager = LocationManager()
+    @StateObject private var locationManager = LocationManager() // 位置情報関連
 
-    @State private var Ramendata = RamenData()
-    @State private var SearchRamendata = SearchRamenData()
-    @State private var Locationhelper = LocationHelper()
+    @State private var Ramendata = RamenData()  // 現在地周辺データ
+    @State private var SearchRamendata = SearchRamenData() // 検索データ
+    @State private var Locationhelper = LocationHelper() // 座標 <=> 住所
 
     @State var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -230,11 +228,9 @@ struct ContentView: View {
         )
     )
 
-    // ==================================================
-    // MARK: - UI State (検索 / タップ / 表示制御)
-    // ==================================================
+    // - UI State (検索 / タップ / 表示制御)
 
-    @FocusState private var isFocused: Bool
+    @FocusState private var isFocused: Bool 
     @FocusState var isSearchFocused: Bool
 
     @State private var didFetch = false
@@ -251,102 +247,83 @@ struct ContentView: View {
 
     @State private var selectedShop: RamenShop? = nil
 
-    // ==================================================
     // MARK: - Shop Info State
-    // ==================================================
 
-    @State var selectshopregularhours: [String] = []
-    @State var selectshopstate: Bool = false
-    @State var selectrating = 0.0
+    @State var selectshopregularhours: [String] = [] // 選択したお店の営業時間
+    @State var selectshopstate: Bool = false // 選択したお店が営業しているか
+    @State var selectrating = 0.0 // 選択したお店のGoogle評価
 
-    // ==================================================
-    // MARK: - Route State
-    // ==================================================
+    // - Route State (ルート検索用)
 
     @State var route: MKRoute? = nil
-    @State var selecttransportation = ""
-    @State var targetroutedistance = 0.0
-    @State var targetroutetime = 0
-    @State var isTime = false
+    @State var selecttransportation = "" // 交通手段
+    @State var targetroutedistance = 0.0 // 距離
+    @State var targetroutetime = 0 // 時間
+    @State var isTime = false 
 
-    // ==================================================
     // MARK: - Visit / Database State (Realm)
-    // ==================================================
 
-    @ObservedResults(VRamenDatabase.self) var visitramendatabase
-    @ObservedResults(RamenDatabase.self) var ramendatabase
-    @ObservedResults(UserInfo.self) var userinfo
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase  // 訪問済みラーメンデータ db
+    @ObservedResults(RamenDatabase.self) var ramendatabase  // 周辺ラーメンデータ db
+    @ObservedResults(UserInfo.self) var userinfo // ユーザ情報 db
 
-    @State var visitedShops: [RamenShop] = []
+    @State var visitedShops: [RamenShop] = [] // 訪問済みのラーメン店
     @State var allShops: [RamenShop] = []
-    @State var reserveshops: [RamenShop] = []
+    @State var reserveshops: [RamenShop] = [] //　
 
-    @State var isvisit = false
+    @State var isvisit = false 
     @State var isvisititem = false
     @State var visitid: ObjectId? = nil
 
     @State var isvisitalert = false
-    @State var isimpress = ""
-    @State var evaluate = 0.0
+    @State var isimpress = ""  // 感想
+    @State var evaluate = 0.0   //　自己評価
 
-    @State var genre: RamenGenre = .shoyu
-    @State var selectevaluate: Double? = nil
-    @State var selectimpress: String? = nil
+    @State var genre: RamenGenre = .shoyu 
+    @State var selectevaluate: Double? = nil //　選択したお店の自己評価
+    @State var selectimpress: String? = nil  // 選択したお店の感想
 
     @State var visitlistflag = false
 
-    // ==================================================
-    // MARK: - Map Clustering / Rendering
-    // ==================================================
+    // - Map Clustering / Rendering
 
     @State private var clusters: [ClusterShop] = []
     @State var displayShops: [RamenShop] = []
 
-    // ==================================================
-    // MARK: - Search Control / Performance
-    // ==================================================
+    // - Search Control / Performance
 
     let searchQueue = SearchQueue()
     @State private var searchVersion = 0
 
-    @State private var lastRegion: MKCoordinateRegion? = nil
+    @State private var lastRegion: MKCoordinateRegion? = nil  
     @State private var debounceTask: Task<Void, Never>? = nil
 
-    // ==================================================
-    // MARK: - Navigation / Screen Control
-    // ==================================================
+    // - Navigation / Screen Control
 
-    @State var ishanteiview = false
-    @State var isvisitanalize = false
-    @State var ismenuList = true
-    @State var isfirsttimenotice = false
+    @State var ishanteiview = false   // 判定View
+    @State var isvisitanalize = false // 分析View
+    @State var ismenuList = true // メニュー全体管理
+    @State var isfirsttimenotice = false // 初回通知
 
-    // ==================================================
-    // MARK: - User Progress / Level System
-    // ==================================================
+    // - User Progress / Level System
 
-    @State var level = 0
-    @State var visitcount = 0
-    @State var progress = 0.0
-    @State var res = 0
+    @State var level = 0  
+    @State var visitcount = 0 // 全訪問回数
+    @State var progress = 0.0  // レベル進捗度
+    @State var res = 0  // 残り訪問数
     @State var shougou = ""
 
-    // ==================================================
-    // MARK: - Selected Detail (Map Tap Result)
-    // ==================================================
+    // - Selected Detail (Map Tap Result)
 
-    @State var selvramendata_latitude = 0.0
+    @State var selvramendata_latitude = 0.0  
     @State var selvramendata_longitude = 0.0
 
     @State var selimpress = ""
-    @State var visititemnum = 0
+    @State var visititemnum = 0 // そのお店の訪問回数
 
-    @State var ishanteiview = false
+    @State var ishanteiview = false  // 判定ビュー
 
-
-    // ==================================================
     // MARK: - Computed Helpers
-    // ==================================================
 
     var regionKey: RegionKey {
         let r = locationManager.region
@@ -357,10 +334,8 @@ struct ContentView: View {
         )
     }
 
+    // - Body (UI Composition Only Zone)
 
-    // ==================================================
-    // MARK: - Body (UI Composition Only Zone)
-    // ==================================================
     var body: some View {
 
         NavigationStack {
@@ -373,9 +348,8 @@ struct ContentView: View {
 
             ZStack(alignment: .top) {
 
-                // ==================================================
-                // MARK: - Map Rendering
-                // ==================================================
+                // - Map Rendering
+
                 Map(
                     coordinateRegion: $locationManager.region,
                     showsUserLocation: true,
@@ -444,10 +418,9 @@ struct ContentView: View {
                     }
                 }
 
-                // ==================================================
-                // MARK: - Region Change + Debounce Update Logic
-                // ==================================================
-                .onChange(of: regionKey) { _ in
+                // - Region Change + Debounce Update Logic
+
+                .onChange(of: regionKey) { _ in  // 全然覚えてないけど　グラフの範囲を移動させたり　した時　爆速計算ではなく0.2sくらい開けるんだっけ？
 
                     debounceTask?.cancel()
 
