@@ -1,67 +1,71 @@
 import SwiftUI
-import MapKit //GoogleMap的な　有料のライブラリ
+import MapKit // Apple純正の地図ライブラリ
 import CoreLocation
 import RealmSwift
+import Charts // グラフ描画用
 
-import Charts//グラフ用
-
-// 分析ビュー
+// - 分析画面
 
 struct VisitAnalizeView: View {
+
+    // 親Viewから渡される分析表示管理
     
-    
-    @Binding var isvisitanalize:Bool
-    //let dateFormatter = DateFormatter()
-    
-    
-    
-    @State var visitcount = 0 //総訪問回数
-    
-    
-    @State var visitshopcount = 0//総訪問店数
-    
+    @Binding var isvisitanalize: Bool
+
+    // 総訪問回数
+    @State var visitcount = 0
+
+    // 総訪問店舗数
+    @State var visitshopcount = 0
+
+    // Realmから取得
     @ObservedResults(VRamenDatabase.self) var visitramendatabase
-    
     @ObservedResults(UserInfo.self) var userinfo
-    
-    @State var level = 0//これはRealmに自分データを保存しておくことにしてそこから取り出すわ
-    
-    
+
+    // 現在レベル
+    @State var level = 0
+
+    // ProgressView用
     @State var progress = 0.0
-    //必要なのは自分のそう訪問数 - 今のレベル のそう訪問数で　あとどれくらいか決まる
-    
-    //@State var visit_exp_now = 0
-    
+
+    // 選択中の年/月
     @State var selectedYear = 2026
     @State var selectedMonth = 4
-    /*
-     var required:Double{//そのレベルでの必要な経験値(訪問数)
-     let progress = Double(self.level) / 100.0
-     return 10000 * progress * progress
-     }
-     */
+
+    // ランキング画面遷移用
+    @State var rankingnavigation = false
+
+    // 次レベルまで必要な残り経験値
+    @State var res = 0
+
+    // ジャンル別集計
+    @State var ramengenrecount: [String: Int] = [:]
+
+    // - 月ごとの訪問数
+
+    // computed var
     
-    
-    
-    
-    var monthlyList: Int {//monthlyList.countでしか使ってないのやば
-        //let calender = Calender.current//現在の月
-        visitramendatabase.filter {
+    var monthlyList: Int {
+        
+        // 指定した年/月の訪問店データだけ抽出
+        
+        visitramendatabase.filter { //O(N)
+
             Calendar.current.component(.year, from: $0.visitAt) == selectedYear &&
             Calendar.current.component(.month, from: $0.visitAt) == selectedMonth
-        }//選択した
+        }
+
+        // visitnumberを合計
         .reduce(0) { $0 + $1.visitnumber }
     }
 
+    // - 総評価値
     
-    @State var res = 0
-    @State var rankingnavigation = false
+    var totalEvaluate: Double {
 
-    
-    var totalEvaluate: Double {//計算用 O(N)
+        // 全店舗の評価値合計
         visitramendatabase.reduce(0) { $0 + $1.evaluate }
     }
-    
     
     @State var ramengenrecount: [String: Int] = [:]  //ラーメンのジャンルごとのcount
     
@@ -84,16 +88,13 @@ struct VisitAnalizeView: View {
                      ScrollView {
                          VStack(spacing: 20) {
 
-                             // ======================
-                             // HEADER
-                             // ======================
+                             // ヘッダー
                              Text("訪問データ")
                                  .font(.title2.bold())
                                  .padding(.top, 8)
 
-                             // ======================
-                             // LEVEL CARD
-                             // ======================
+                             // - レベル UI 
+                             
                              VStack(spacing: 12) {
 
                                  HStack {
@@ -127,9 +128,8 @@ struct VisitAnalizeView: View {
                              .shadow(color: .black.opacity(0.05), radius: 5)
                              .padding(.horizontal)
 
-                             // ======================
-                             // STATS
-                             // ======================
+                             // - 基本統計
+                             
                              HStack(spacing: 12) {
                                  statCard(title: "総訪問回数", value: "\(visitcount)")
 
@@ -142,9 +142,8 @@ struct VisitAnalizeView: View {
                              }
                              .padding(.horizontal)
 
-                             // ======================
-                             // GENRE CHART（カード化）
-                             // ======================
+                             // - ジャンル円グラフ
+                             
                              VStack(alignment: .leading, spacing: 12) {
 
                                  Text("ジャンル割合")
@@ -180,9 +179,8 @@ struct VisitAnalizeView: View {
                              .shadow(color: .black.opacity(0.05), radius: 5)
                              .padding(.horizontal)
 
-                             // ======================
-                             // FILTER CARD
-                             // ======================
+                             // - 年/月フィルター
+                             
                              VStack(alignment: .leading, spacing: 16) {
 
                                  Text("TIME FILTER")
@@ -225,9 +223,8 @@ struct VisitAnalizeView: View {
                              .padding(.horizontal,15)
                              
 
-                             // ======================
-                             // MONTH RESULT
-                             // ======================
+                             // - 月別結果
+                             
                              VStack(spacing: 8) {
 
                                  Text("\(String(selectedYear))年 \(selectedMonth)月")
@@ -244,9 +241,8 @@ struct VisitAnalizeView: View {
                              .shadow(color: .black.opacity(0.05), radius: 5)
                              .padding(.horizontal)
 
-                             // ======================
-                             // ACTIONS
-                             // ======================
+                             // - ボタン群
+                             
                              VStack(spacing: 10) {
 
                                  Button {
@@ -270,87 +266,13 @@ struct VisitAnalizeView: View {
                      
                      .onAppear(){
                          
-                         if let userinf = userinfo.first{
-                             level = userinf.level//今の自分のレベルを取り出す
-                             
-                             
-                             visitshopcount = visitramendatabase.count//総訪問店数
-                             
-                             visitcount = visitramendatabase.map { $0.visitnumber }.reduce(0, +)//再訪含めてカウントしている　訪問回数
-                             //visit_exp_now = 全層訪問数 - Required(level:)の自分のレベルまでの累積経験値を計算したもの 意外と時間がかかるのかもしれない だったらいっそ保存しておこう
-                             
-                             var visit_exp_now = visitcount - userinf.lastExp//最後の訪問数
-                             
-                             //var base = max(userinf.lastExp - Int(RequiredExp(level: level-1)),0)//今現在のそのレベルの途中経験値
-                             //始め以外
-                             
-                             
-                             //ここからレベル計算
-                             var base = userinf.resExp//最初のbase
-                             
-                             if visit_exp_now + base >= Int(RequiredExp(level: level)){
-                                 
-                                 while visit_exp_now + base >= Int(RequiredExp(level: level)){
-                                     for i in base...Int(RequiredExp(level: level)){
-                                         DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
-                                             progress = Double(i) / Double(RequiredExp(level: level))
-                                         }
-                                         
-                                         print(progress)
-                                     }
-                                     level += 1
-                                     
-                                     visit_exp_now -= Int(RequiredExp(level: level)) - base//レベルアップしたらそこで使用したぶん消費
-                                     base = 0//レベルアップしたらbase = 0
-                                     print(level)
-                                     
-                                 }//この時点で0<=visit_exp_now<=Required
-                                 
-                                 
-                                 
-                                 for i in base...base + visit_exp_now{
-                                     DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
-                                         progress = Double(i) / Double(RequiredExp(level: level))
-                                         print(508)
-                                     }
-                                     
-                                 }
-                                 base = visit_exp_now//残り
-                             }
-                             else{
-                                 print(base)
-                                 print(visit_exp_now)
-                                 for i in base...min(Int(RequiredExp(level: level)),base + visit_exp_now){
-                                     DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
-                                         progress = Double(i) / Double(RequiredExp(level: level))
-                                         print(508)
-                                     }
-                                     
-                                     
-                                     print(progress)
-                                 }
-                                 base += visit_exp_now//ベース変更
-                                 
-                                 
-                             }
-                             
-                             let realm = try! Realm()//一旦画面表示のたびにrealm触ることになるけど暫定
-                             if let user = realm.objects(UserInfo.self).first {
-                                 try! realm.write{
-                                     user.level = level
-                                     user.lastExp = visitcount
-                                     user.resExp = base
-                                 }//userinfは本物のものじゃないからダメ
-                             }
-                             
-                             res = RequiredExp(level: level) - base
-                             
-                             //ここまで
-                             
-                             
+                            // 訪問数に応じてレベルチェック
+                             levelCheck()
+
+                          
                              ramengenrecount = [:]
                              
-                             //ここからジャンルごとの訪問数集計処理
+                             //ジャンルごとの訪問数集計処理
                              for ramen in visitramendatabase{
                                  if let genreCount = ramengenrecount[ramen.genre]{//ここで保証するのはgenreCountの存在 ramengenrecount[ramen.genre]にアクセスしても保証されてない   pythonとの違い pythonだとif ramengenrecount[ramen.genre]{}になるかな swiftではramengenrecountはアンラップしないと使えない
                                      ramengenrecount[ramen.genre] = genreCount + 1
@@ -358,10 +280,8 @@ struct VisitAnalizeView: View {
                                  else{
                                      ramengenrecount[ramen.genre] = 1
                                      
-                                 }
-                                 
-                             }//ここまで
-                             
+                                 }    
+                             } 
                              
                          }
                  }
@@ -369,6 +289,8 @@ struct VisitAnalizeView: View {
         }
         
         }
+    
+//　レベルに対して　経験値計算
     func RequiredExp(level: Int) -> Int {
         if level >= 0{
             let t = Double(level) / 100.0
@@ -376,6 +298,111 @@ struct VisitAnalizeView: View {
         }
         else{
             return 1
+        }
+    }
+
+// レベルの更新
+
+    func levelCheck(){
+        
+        if let userinf = userinfo.first{
+
+            level = userinf.level // 現在のレベル
+
+        // 再訪回数含めて訪問回数取得
+
+            visitcount = visitramendatabase.map { $0.visitnumber }.reduce(0, +)  // O(N)
+
+        // 更新訪問数
+
+            var visit_exp_now = visitcount - userinf.lastExp 
+
+        //　そのレベルに対しての途中経験値
+
+            var base = userinf.resExp 
+
+        //  そのレベルに対して　途中経験値 + 更新分
+
+            var tempExp = visit_exp_now + base
+
+        // レベルup
+
+            if tempExp >= Int(RequiredExp(level: level)){
+                
+                while visit_exp_now + base >= Int(RequiredExp(level: level)){
+                    for i in base...Int(RequiredExp(level: level)){
+
+                        // 他のUI更新変数とタイミングずらす
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                            progress = Double(i) / Double(RequiredExp(level: level))
+                        }
+                    }
+
+                    level += 1
+
+                    // 使用経験値分減算
+
+                    visit_exp_now -= Int(RequiredExp(level: level)) - base
+
+                    //レベルアップしたら途中経験値0
+
+                    base = 0
+
+                }//この時点で0<=visit_exp_now<=Required
+
+            // 残り経験値
+                for i in base...base + visit_exp_now{
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                        progress = Double(i) / Double(RequiredExp(level: level))
+                    }
+                }
+                base = visit_exp_now // 途中経験値
+            }
+
+            else{ // level down or stay
+
+                if visit_exp_now >= 0{ //stay
+
+                    for i in base...min(Int(RequiredExp(level: level)),tempExp){
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                            progress = Double(i) / Double(RequiredExp(level: level))
+                        }
+                    }
+                }
+                else{ // down
+
+                    while tempExp < 0{ // level down処理
+                        level -= 1
+                        tempExp += RequiredExp(level: level) // 下げたレベルでのtempExp
+                        base = RequiredExp(level: level) // 途中経験値は下げたレベルでのbase
+                    }
+
+                    for i in stride(from: base - 1, through: base + visit_exp_now - 1, by: -1) {//基本は1ずつしか経験値は減らないし貯まらない
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                            progress = Double(i) / Double(RequiredExp(level: level))
+                        }
+                    }
+
+                }
+                base += visit_exp_now //ベース変更
+                
+            }
+
+        // - Realm保存 (ユーザ情報)
+
+            let realm = try! Realm()
+            if let user = realm.objects(UserInfo.self).first {
+                try! realm.write{
+                    user.level = level
+                    user.lastExp = visitcount
+                    user.resExp = base
+                }
+            }
+            
+            res = RequiredExp(level: level) - base
+
         }
     }
            
