@@ -1,10 +1,12 @@
 import SwiftUI
-import MapKit //GoogleMap的な　有料のライブラリ
+import MapKit 
 import CoreLocation
 import RealmSwift
 import Combine
 
 // - 訪問リストビュー
+
+/* 訪問リスト一覧*/
 
 struct VisitList: View {
 
@@ -26,7 +28,7 @@ struct VisitList: View {
 
     @State var isselectgenreview = false
 
-    // MARK: - sorted data
+    // - sorted data 
     var sortedList: [VRamenDatabase] {
         let filtered = Array(visitramendatabase.filter {
             selectGenres.isEmpty || selectGenres.contains($0.genre)
@@ -37,14 +39,13 @@ struct VisitList: View {
         : filtered.sorted { $0.evaluate > $1.evaluate }
     }
 
-    // MARK: - UI
     var body: some View {
 
         ZStack {
             
-            Color.white//これで白い面をつけることで透け透けにしない
+            Color.white  //これで白い面をつけることで透け透けにしない
             // ===== 背景 =====
-            LinearGradient(//ただの薄い色が塗ることができるようになる
+            LinearGradient(
                 colors: [Color.orange.opacity(0.55), Color.yellow.opacity(0.4)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -53,9 +54,7 @@ struct VisitList: View {
 
             VStack(spacing: 14) {
 
-                // =====================
                 // ヘッダー
-                // =====================
                 HStack {
 
                     Text("🍜 訪問ログ")
@@ -64,6 +63,8 @@ struct VisitList: View {
 
                     Spacer()
 
+                // 評価値を元にリストを昇順　降順に並べる
+                    
                     Button {
                         isAscending.toggle()
                     } label: {
@@ -76,14 +77,17 @@ struct VisitList: View {
                 }
                 .padding(.horizontal)
 
-                // =====================
-                // フィルター
-                // =====================
+              // ジャンル別フィルター
+                
                 HStack {
 
                     Button {
                         selectGenres.removeAll()
+
+                        //ジャンル選択ビュー表示
+                        
                         isselectgenreview.toggle()
+                        
                     } label: {
                         Text("フィルター")
                             .font(.caption)
@@ -97,26 +101,27 @@ struct VisitList: View {
                 }
                 .padding(.horizontal)
 
-                // =====================
-                // リスト（カードUI）
-                // =====================
+                // リスト 
                 ScrollView {
 
                     VStack(spacing: 12) {
 
                         ForEach(sortedList) { visitramen in
 
+                        // リストの訪問店を選択 => 選択したお店の座標を取得 => Mapの移動
+                                             
                             Button {
-
+                                    
                                 selvramendata_latitude = visitramen.latitude
                                 selvramendata_longitude = visitramen.longitude
                                 onChoice()
 
                             } label: {
+                                
+                        // 店名, 自己評価, 訪問日, 都道府県, ジャンル情報
 
                                 VStack(alignment: .leading, spacing: 10) {
 
-                                    // ---- 上段 ----
                                     HStack {
 
                                         Text(visitramen.name)
@@ -139,12 +144,10 @@ struct VisitList: View {
                                         .cornerRadius(8)
                                     }
 
-                                    // ---- 中段 ----
                                     Text(dateFormatter.string(from: visitramen.visitAt))
                                         .font(.caption2)
                                         .foregroundColor(.gray)
 
-                                    // ---- 下段 ----
                                     HStack(spacing: 6) {
 
                                         Text(visitramen.prefecture)
@@ -176,9 +179,7 @@ struct VisitList: View {
                     .padding(.top, 6)
                 }
 
-                // =====================
                 // 閉じる
-                // =====================
                 Button {
                     visitlistflag = false
                 } label: {
@@ -195,9 +196,8 @@ struct VisitList: View {
             }
             .padding(.top, 10)
 
-            // =====================
-            // フィルターシート
-            // =====================
+            // フィルタービューの表示
+            
             if isselectgenreview {
                 SelectGenreView(
                     isselectgenreview: $isselectgenreview,
@@ -212,7 +212,8 @@ struct VisitList: View {
         }
     }
 
-    // MARK: - Genre color
+    // お店のジャンルに合わせてUI表示する時 背景色をつける
+    
     func genreColor(genre: String) -> Color {
         switch genre {
         case "醤油": return .brown
@@ -240,7 +241,8 @@ struct SelectGenreView: View {
     
     var body: some View {
         ZStack {
-            // 背景（うっすら暗く）
+            // 背景
+            
             Color.black.opacity(0.2)
                 .ignoresSafeArea()
             
@@ -267,7 +269,10 @@ struct SelectGenreView: View {
                 ) {
                     
                     ForEach(RamenGenre.allCases, id: \.self) { item in
-                        
+                                                              
+                        // ジャンル表示                                                
+
+                        // ジャンルを選択  /*灰色 => 背景グラデーション UI変化を自然にする為 easeInOut*/
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 toggle(genre:item.rawValue)
@@ -280,8 +285,8 @@ struct SelectGenreView: View {
                                 .frame(maxWidth: .infinity)
                                 
                                 .background(
-                                    Group {//方が異なるもものを同じっぽく扱わせる  LinearGradient  Color
-                                        if selectGenres.contains(item.rawValue) {//それが選ばれているジャンルなら
+                                    Group {
+                                        if selectGenres.contains(item.rawValue) { 
                                             LinearGradient(//グラデーション背景
                                                 colors: [Color.orange, Color.red],
                                                 startPoint: .leading,
