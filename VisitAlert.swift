@@ -5,18 +5,26 @@ import RealmSwift
 import Combine
  
 // 訪問ラーメン登録ビュー
-
 struct VisitAlert: View {
+ 
+    // 感想テキスト
     @Binding var isimpress: String
-    @Binding var evaluate: Double
-    @Binding var isvisitalert: Bool
-    @Binding var genre: RamenGenre   // ←追加
-    @FocusState private var isFocused: Bool //キーボードフォーカス用 //FocusState型をviewにわたし紐づけることで、フォーカス管理ができる　入力中だと勝手にtrueになったり、falseだとviewが戻ったり
-    
-    
 
-    
+    // 評価
+    @Binding var evaluate: Double
+
+    // Alert表示管理
+    @Binding var isvisitalert: Bool
+
+    // ラーメンジャンル
+    @Binding var genre: RamenGenre
+
+    // TextEditorがフォーカス中か否か
+    @FocusState private var isFocused: Bool
+
+    // Picker用 
     var valuelist = [0.0,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0]
+ 
     var onSave: () -> Void
     
     var body: some View {
@@ -24,11 +32,13 @@ struct VisitAlert: View {
 
             
             
-            ScrollView{//こいつ自体も縦スクロールを検知しているから さらにonTapGesture監視する余裕はない
+            ScrollView{
+             
                 VStack{
                     VStack(spacing: 18) {
                         
                         // ===== ヘッダー =====
+                     
                         HStack {
                             Text("レビューを書く")
                                 .font(.headline)
@@ -46,12 +56,15 @@ struct VisitAlert: View {
                             }
                         }
                         
-                        // ===== 評価 =====
+                        // - 評価 
+                     
                         VStack(spacing: 10) {
                             Text("あなたの評価")
                                 .font(.caption)
                                 .foregroundColor(.gray)
-                            
+
+                         //星 + 数値
+                         
                             HStack(spacing: 6) {
                                 Image(systemName: "star.fill")
                                     .foregroundColor(.yellow)
@@ -69,49 +82,54 @@ struct VisitAlert: View {
                             .pickerStyle(.segmented)
                         }
                         
-                        // ===== ジャンル（追加） =====      普通のPicker嫌だからAIに頼んだ　機能は一緒
+                        // ===== ジャンル（追加） =====   
                         VStack(alignment: .leading, spacing: 8) {
                             Text("ジャンル")
                                 .font(.caption)
                                 .foregroundColor(.gray)
-                            
-                            LazyVGrid(columns: [//Viewにたて3つで並べる　Grid設定
+
+                         // 3列Grid
+                         
+                            LazyVGrid(columns: [
                                 GridItem(.flexible()),
                                 GridItem(.flexible()),
-                                GridItem(.flexible())//アイテムをForEachで並べるだけで勝手に3個ずつになる
+                                GridItem(.flexible())
                                                ], spacing: 8) {
                                                    
-                                                   ForEach(RamenGenre.allCases, id: \.self) { item in //.allCases でenum列挙
+                                                   ForEach(RamenGenre.allCases, id: \.self) { item in // enum 全列挙
                                                        Button {
+                                                        // ジャンル変更
                                                            genre = item
+                                                        
                                                        } label: {
-                                                           Text(item.rawValue)//.enumの表示文字 変数 -> 文字String
+                                                           Text(item.rawValue)
                                                            
-                                                               .font(.caption)//ここから
+                                                               .font(.caption)
                                                                .padding(.vertical, 8)
-                                                               .frame(maxWidth: .infinity)//横幅を自由に任せる
+                                                               .frame(maxWidth: .infinity)
                                                                .background(
-                                                                Group {//方が異なるもものを同じっぽく扱わせる  LinearGradient  Color
-                                                                    if genre == item {//それが選ばれているジャンルなら
-                                                                        LinearGradient(//グラデーション背景
+                                                                Group {
+                                                                    if genre == item { // 選択中
+                                                                        LinearGradient(
                                                                             colors: [Color.orange, Color.red],
                                                                             startPoint: .leading,
                                                                             endPoint: .trailing
                                                                         )
                                                                     } else {
-                                                                        Color.gray.opacity(0.15)//無色
+                                                                        Color.gray.opacity(0.15)
                                                                     }
                                                                 }
                                                                 
                                                                )
-                                                               .foregroundColor(genre == item ? .white : .primary) //ここまで装飾
+                                                               .foregroundColor(genre == item ? .white : .primary)
                                                                .cornerRadius(10)
                                                        }
                                                    }
                                                }
                         }
                         
-                        // ===== コメント =====
+                        // - 感想入力
+                     
                         VStack(alignment: .leading, spacing: 8) {
                             Text("感想")
                                 .font(.caption)
@@ -133,19 +151,24 @@ struct VisitAlert: View {
                             .cornerRadius(12)
                         }
                         
-                        // ===== ボタン =====
+                        // ボタン群
+                     
                         HStack(spacing: 12) {
-                            
+
+                         // キャンセル
                             Button("キャンセル") {
                                 isvisitalert = false
                             }
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .background(Color.gray.opacity(0.15))
                             .cornerRadius(12)
-                            
+
+                         // 保存
                             Button(action: {
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()//なんじゃこれ？
-                                //print("evaluate:", evaluate)
+                             
+                             // タップ時の振動 (AI考案)
+                             
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 onSave()
                                 isvisitalert = false
                             }) {
@@ -163,10 +186,12 @@ struct VisitAlert: View {
                             }
                         }
                         
-                    }//これ全体のVStack
+                    }
                     
-                    .contentShape(Rectangle()) //このビュー全体をタップ対象にする　<-  こうしないとVStackの中の中身のある部分(ビュー)だけタップ対象だから余白タップできない
-                    .onTapGesture{//   今までならdismissKeyBoard呼び出して　無理やりfocusを剥がしていたけど　関数じゃなくて　変数で管理できる　FocusState型作って、focusビューに入れておけば
+                    .contentShape(Rectangle()) // VStack余白もタップ可能にする
+                 
+                 // 背景タップでキーボード閉じる
+                    .onTapGesture{
                         isFocused = false
                     }
                     
