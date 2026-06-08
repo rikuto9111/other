@@ -78,7 +78,7 @@ Google Places APIの利用回数削減設計
 APIコスト削減のためのキャッシュ設計
 ユーザー行動の可視化（分析・ランキング）
 
-![demo](./demo_4.gif)
+<img src="demo_4.gif" width="300">
 
 
 
