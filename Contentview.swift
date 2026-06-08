@@ -1,0 +1,1784 @@
+// ①大きな設計思想として@Bindingとかでもそうだけど　同じ種類の変数は同じような場所においておくとまとめやすいしみやすい!!
+
+import SwiftUI
+import MapKit // 地図（GoogleMap的なもの。Apple純正）
+import CoreLocation
+import RealmSwift
+import Charts // グラフ用
+
+
+// - ラーメンマップ用カスタムアイコンView
+
+struct RamenAnnotation: View {
+    // 店情報（表示用）
+    
+    var rating: Double
+    var name: String
+    var isstate: Bool  // 営業しているか否か
+    
+    // Contentviewへ状態を返すBinding群
+    
+    @Binding var isTap: Bool   // ラーメンアイコンの選択状態
+    @Binding var shopname: String
+    @Binding var selectshopregularhours: [String] // 営業時間
+    @Binding var targetdestination: CLLocationCoordinate2D  // 選択したお店の座標(緯度・経度)
+    @Binding var selectrating: Double // Google評価
+    @Binding var selectshopstate: Bool  // 営業中か否か
+    @Binding var isvisititem: Bool // そのお店が訪問済みか
+    @Binding var visitid: ObjectId?
+    @Binding var selimpress: String // 訪問済みアイテムの感想
+    @Binding var visititemnum: Int // 訪問回数
+    
+    // 店固有データ
+    
+    var shopregularhours: [String]
+    var destination: CLLocationCoordinate2D
+    var isvisited: Bool
+    var visitedid: ObjectId?
+    var visitrating: Double?
+    
+    var body: some View {
+        
+        // Realm（このラーメンアイコンタップ時に参照）
+        let realm = try! Realm()
+        
+        Button {
+            // タップ時：Contentviewへデータを受け渡し
+            
+            shopname = name
+            targetdestination = destination
+            selectrating = rating
+            selectshopregularhours = shopregularhours
+            selectshopstate = isstate
+            isvisititem = isvisited
+            
+            // 訪問済みデータがある場合   (id,感想,訪問回数)
+            
+            if let vid = visitedid {
+                
+                visitid = vid
+                
+                if let object = realm.object(
+                    ofType: VRamenDatabase.self,
+                    forPrimaryKey: vid
+                ) {
+                    selimpress = object.isimpress
+                    visititemnum = object.visitnumber
+                }
+            }
+            
+            // アイコン選択状態を切り替え
+            isTap.toggle()
+            
+        } label: {
+            
+            VStack(spacing: 4) {
+                
+                // アイコン本体
+                ZStack(alignment: .topTrailing) {
+                    
+                    Image(isstate ? "ramen" : "noramen")
+                        .resizable()
+                        .frame(width: 34, height: 34)
+                    
+                    // 訪問済みバッジ
+                    if isvisited {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.green)
+                            .background(Color.white.clipShape(Circle()))
+                            .offset(x: 6, y: -6)
+                    }
+                }
+                
+                // 自己評価（訪問済みのみ）
+                
+                if let vrating = visitrating {
+                    Text("⭐️\(vrating, specifier: "%.1f")")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.black.opacity(0.7))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.white.opacity(0.9))
+                        .cornerRadius(6)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(width: 80, height: 70, alignment: .bottom)
+        .offset(y: -35)
+    }
+}
+
+
+//  - ジャンル定義
+enum RamenGenre: String, CaseIterable {
+    case shoyu = "醤油"
+    case miso = "味噌"
+    case shio = "塩"
+    case tonkotsu = "豚骨"
+    case iekei = "家系"
+    case jiro = "二郎系"
+    case tsukemen = "つけ麺"
+    case other = "その他"
+}
+
+// 「全て」あり版（フィルタ用）
+enum RamenGenre2: String, CaseIterable {
+    case all = "全て"
+    case shoyu = "醤油"
+    case miso = "味噌"
+    case shio = "塩"
+    case tonkotsu = "豚骨"
+    case iekei = "家系"
+    case jiro = "二郎系"
+    case tsukemen = "つけ麺"
+    case other = "その他"
+}
+
+
+//- 非同期キュー（未使用 or 実験用）
+
+actor SearchQueue {
+    func run(_ block: @escaping () async -> Void) async {
+        await block()
+    }
+}
+
+
+// - クラスタリング用モデル
+
+struct ClusterShop: Identifiable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let count: Int
+    let shops: [RamenShop]
+}
+
+// 地図領域のキー（キャッシュ用途っぽい）
+struct RegionKey: Equatable {
+    let lat: Double
+    let lon: Double
+    let delta: Double
+}
+
+
+// - レベル表示UI
+
+struct RingProgressView: View {
+    
+    var level: Int
+    var shougou: String
+    var progress: Double  // そのレベルでの進捗度
+    var visitcount: Int // 訪問回数
+    
+    var body: some View {
+        
+        VStack(spacing: 15) {
+            
+            ZStack {
+                
+                //リンググラフ
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 10)
+                
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Color.orange, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                
+                Text("Lv \(level)")
+                    .bold()
+            }
+            .frame(height: 70)
+            
+            Text(shougou)
+                .font(.system(size: 20, weight: .bold, design: .serif))
+                .foregroundColor(.white)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(
+                    LinearGradient(
+                        colors: [.orange, .red],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(14)
+                .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+        }
+    }
+}
+
+
+struct ContentView: View {
+    
+    // - Location / Map / Core Services
+    
+    @StateObject private var locationManager = LocationManager() // 位置情報関連
+    
+    @State private var Ramendata = RamenData()  // 現在地周辺データ
+    @State private var SearchRamendata = SearchRamenData() // 検索データ
+    @State private var Locationhelper = LocationHelper() // 座標 <=> 住所
+    
+    @State var cameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+    )
+    
+    // - UI State (検索 / タップ / 表示制御)
+    
+    @FocusState private var isFocused: Bool
+    @FocusState var isSearchFocused: Bool
+    
+    @State private var didFetch = false
+    
+    @State var isTap = false
+    @State var searchtext: String = ""
+    @State var isSearching: Bool = false
+    @State var isFlag: Bool = false
+    @State var isSearchRamen = false
+    
+    @State var shopname: String = ""
+    @State var targetdestination: CLLocationCoordinate2D =
+    CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917)
+    
+    @State private var selectedShop: RamenShop? = nil
+    
+    // MARK: - Shop Info State
+    
+    @State var selectshopregularhours: [String] = [] // 選択したお店の営業時間
+    @State var selectshopstate: Bool = false // 選択したお店が営業しているか
+    @State var selectrating = 0.0 // 選択したお店のGoogle評価
+    
+    // - Route State (ルート検索用)
+    
+    @State var route: MKRoute? = nil
+    @State var selecttransportation = "" // 交通手段
+    @State var targetroutedistance = 0.0 // 距離
+    @State var targetroutetime = 0 // 時間
+    @State var isTime = false
+    
+    // MARK: - Visit / Database State (Realm)
+    
+    @ObservedResults(VRamenDatabase.self) var visitramendatabase  // 訪問済みラーメンデータ db
+    @ObservedResults(RamenDatabase.self) var ramendatabase  // 周辺ラーメンデータ db
+    @ObservedResults(UserInfo.self) var userinfo // ユーザ情報 db
+    
+    @State var visitedShops: [RamenShop] = [] // 訪問済みのラーメン店
+    @State var allShops: [RamenShop] = []
+    @State var reserveshops: [RamenShop] = [] //
+    
+    @State var isvisit = false
+    @State var isvisititem = false
+    @State var visitid: ObjectId? = nil
+    
+    @State var isvisitalert = false
+    @State var isimpress = ""  // 感想
+    @State var evaluate = 0.0   //　自己評価
+    
+    @State var genre: RamenGenre = .shoyu
+    @State var selectevaluate: Double? = nil //　選択したお店の自己評価
+    @State var selectimpress: String? = nil  // 選択したお店の感想
+    
+    @State var visitlistflag = false
+    
+    // - Map Clustering / Rendering
+    
+    @State private var clusters: [ClusterShop] = []
+    @State var displayShops: [RamenShop] = []
+    
+    // - Search Control / Performance
+    
+    let searchQueue = SearchQueue()
+    @State private var searchVersion = 0
+    
+    @State private var lastRegion: MKCoordinateRegion? = nil
+    @State private var debounceTask: Task<Void, Never>? = nil
+    
+    // - Navigation / Screen Control
+    
+    @State var ishanteiview = false   // 判定View
+    @State var isvisitanalize = false // 分析View
+    @State var ismenuList = true // メニュー全体管理
+    @State var isfirsttimenotice = false // 初回通知
+    
+    // - User Progress / Level System
+    
+    @State var level = 0
+    @State var visitcount = 0 // 全訪問回数
+    @State var progress = 0.0  // レベル進捗度
+    @State var res = 0  // 残り訪問数
+    @State var shougou = ""
+    
+    // - Selected Detail (Map Tap Result)
+    
+    @State var selvramendata_latitude = 0.0
+    @State var selvramendata_longitude = 0.0
+    
+    @State var selimpress = ""
+    @State var visititemnum = 0 // そのお店の訪問回数
+    
+    @State var ishanteiview = false  // 判定ビュー
+    
+    // MARK: - Computed Helpers
+    
+    var regionKey: RegionKey {
+        let r = locationManager.region
+        return RegionKey(
+            lat: r.center.latitude,
+            lon: r.center.longitude,
+            delta: r.span.latitudeDelta
+        )
+    }
+    
+    // - Body (UI Composition Only Zone)
+    
+    var body: some View {
+        
+        NavigationStack {
+            
+            NavigationLink(
+                destination: HanteiView(),
+                isActive: $ishanteiview
+            ) { }
+                .navigationBarBackButtonHidden(true)
+            
+            ZStack(alignment: .top) {
+                
+                // - Map Rendering
+                
+                Map(
+                    coordinateRegion: $locationManager.region,
+                    showsUserLocation: true,
+                    annotationItems: clusters
+                ) { cluster in
+                    
+                    MapAnnotation(coordinate: cluster.coordinate) {
+                        
+                        // 単体ショップ
+                        if cluster.count == 1 {
+                            
+                            let shop = cluster.shops[0]
+                            
+                            RamenAnnotation(
+                                rating: shop.rating,
+                                name: shop.name,
+                                isstate: shop.isOpenNow,
+                                isTap: $isTap,
+                                shopname: $shopname,
+                                shopregularhours: shop.regularHours!,
+                                selectshopregularhours: $selectshopregularhours,
+                                targetdestination: $targetdestination,
+                                destination: shop.coordinate,
+                                selectrating: $selectrating,
+                                selectshopstate: $selectshopstate,
+                                isvisited: shop.isvisited,
+                                isvisititem: $isvisititem,
+                                visitid: $visitid,
+                                visitedid: shop.vid,
+                                visitrating: shop.visitrating,
+                                selimpress: $selimpress,
+                                visititemnum: $visititemnum
+                            )
+                            
+                        } else {
+                            
+                            let shop = cluster.shops[0]
+                            
+                            RamenAnnotation(
+                                rating: shop.rating,
+                                name: shop.name,
+                                isstate: shop.isOpenNow,
+                                isTap: $isTap,
+                                shopname: $shopname,
+                                shopregularhours: shop.regularHours!,
+                                selectshopregularhours: $selectshopregularhours,
+                                targetdestination: $targetdestination,
+                                destination: shop.coordinate,
+                                selectrating: $selectrating,
+                                selectshopstate: $selectshopstate,
+                                isvisited: shop.isvisited,
+                                isvisititem: $isvisititem,
+                                visitid: $visitid,
+                                visitedid: shop.vid,
+                                visitrating: shop.visitrating,
+                                selimpress: $selimpress,
+                                visititemnum: $visititemnum
+                            )
+                            .overlay {
+                                Text("\(cluster.count)")
+                                    .padding(6)
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
+                }
+                
+                // - Region Change + Debounce Update Logic
+                
+                .onChange(of: regionKey) { _ in  // 全然覚えてないけど　グラフの範囲を移動させたり　した時　爆速計算ではなく0.2sくらい開けるんだっけ？
+                    
+                    debounceTask?.cancel()
+                    
+                    debounceTask = Task {
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        if Task.isCancelled { return }
+                        
+                        let newRegion = locationManager.region
+                        if !shouldUpdateRegion(newRegion) { return }
+                        
+                        lastRegion = newRegion
+                        
+                        await MainActor.run {
+                            updateDisplayShops()
+                            updateClusters()
+                        }
+                    }
+                }
+                
+                .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+
+
+
+    .allowsHitTesting(!isSearching) // 検索中はMap操作を無効化
+
+VStack {
+    
+    // - 検索バー
+    
+    HStack {
+        
+        Spacer().frame(width: 35)
+        
+        /*
+         focusedを変数で管理する以外はhidekeyboardで無理やりフォーカスを戻す方法もある
+         ただ@FocusState変数で管理した方がやりやすい？
+         */
+        
+        TextField("ラーメン屋を検索", text: $searchtext)
+            .focused($isFocused)
+        
+        // フォーカス状態で検索状態を制御
+        
+            .onChange(of: isFocused) { newValue in
+                isSearching = newValue
+                print(isSearching)
+            }
+        
+        Spacer().frame(width: 35)
+    }
+    
+    .frame(width: 370, height: 60)
+    .background(.white)
+    .cornerRadius(30)
+    
+    // 検索バー上のUI（戻る / クリア）
+    
+    .overlay {
+        HStack {
+            
+            Spacer().frame(width: 35)
+            
+            // キーボードを閉じる
+            // Button(action: { hideKeyboard() }) {
+            
+            Button(action: {
+                isFocused = False}
+            ) { // Focus状態offの方が良い気もする
+                Image(systemName: "chevron.left")  // 戻るアイコン
+            }
+            .foregroundColor(.black)
+            
+            Spacer().frame(width: 310)
+            
+            // テキストクリア
+            Button(action: { searchtext = "" }) {
+                Image(systemName: "xmark")
+                    .foregroundColor(.black)
+                    .padding(5)
+                    .overlay(
+                        Circle().stroke(Color.black, lineWidth: 1)
+                    )
+            }
+            
+            Spacer().frame(width: 35)
+        }
+    }
+    
+    // -------------------------
+    // 検索実行（Enterキー）
+    // -------------------------
+    .onSubmit {
+        
+        let text = searchtext.contains("ラーメン")
+        ? searchtext
+        : "\(searchtext)ラーメン"
+        
+        let center = locationManager.region.center
+        
+        Task {
+            // API検索（キュー制御付き）
+            await searchQueue.run {
+                await SearchRamendata.fetch(
+                    latitude: center.latitude,
+                    longitude: center.longitude,
+                    text: text
+                )
+            }
+            
+            // 検索結果表示トリガー
+            await MainActor.run {
+                isSearchRamen = true
+            }
+        }
+    }
+    
+    // - レベル表示UI  あとで変更
+    
+    Spacer().frame(height: 15)
+    
+    HStack {
+        
+        RingProgressView(
+            level: level,
+            shougou: shougou,
+            progress: progress,
+            visitcount: visitcount
+        )
+        .frame(width: 150, height: 150)
+        
+        Spacer()
+    }
+    
+    Spacer().frame(height: 100)
+    
+    // - 現在地ボタン
+    
+    VStack(spacing: 12) {
+        
+        HStack {
+            Spacer()
+            
+            Button(action: {
+                locationManager.requestLocation()  // 手動で現在地を戻す本体
+            }) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.blue)
+                    .frame(width: 48, height: 48)
+                    .background(.white)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.15), radius: 6)
+            }
+            .padding(.trailing, 16)
+        }
+    }
+}
+
+// - 画面オーバーレイ（分析・リスト・アラート群）
+
+// 分析画面
+
+if isvisitanalize { // 分析ボタンを押す
+    ZStack {
+        Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture { isvisitanalize = false }
+        
+        VStack {
+            VisitAnalizeView(isvisitanalize: $isvisitanalize) // 分析ビュー
+        }
+    }
+}
+
+// 訪問リスト
+
+if visitlistflag { // 訪問リストボタン
+    ZStack {
+        Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture { visitlistflag = false }
+        
+        VStack {
+            VisitList( // 訪問リストビュー
+                visitlistflag: $visitlistflag,
+                selvramendata_latitude: $selvramendata_latitude,
+                selvramendata_longitude: $selvramendata_longitude,
+                onChoice: { // 訪問リストのアイテムを選択した時 moveToで選択したお店の座標(緯度・経度)に地図を移動する
+                    moveTo(latitude: selvramendata_latitude,
+                           longitude: selvramendata_longitude)
+                    visitlistflag = false
+                }
+            )
+            .frame(width: 390, height: 650)
+            .cornerRadius(20)
+        }
+    }
+}
+
+// 訪問登録アラート    店舗の詳細の中の訪問ボタンを押した時
+
+if isvisitalert {
+    ZStack {
+        Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture { isvisitalert = false }
+        
+        VStack {
+            
+            VisitAlert(  // 訪問登録ビュー  => (感想、自己評価、ジャンル) => 登録
+                isimpress: $isimpress,
+                evaluate: $evaluate,
+                isvisitalert: $isvisitalert,
+                genre: $genre,
+                onSave: {
+                    // 訪問店の情報をDBに追加
+                    /*
+                     同期データ　Realm保存  => 非同期データ取得完了 => 改めて追加更新  こうすることで非同期取得中に更新ソースにアクセスしても最低限の重要情報は更新された状態で表示できる
+                     */
+                    do {
+                        let realm = try Realm()
+                        
+                        // 再訪時
+                        
+                        if let vid = visitid,
+                           let object = realm.object(ofType: VRamenDatabase.self,
+                                                     forPrimaryKey: vid) {
+                            
+                            try realm.write {
+                                object.evaluate = evaluate
+                                object.genre = genre.rawValue
+                                object.isimpress = isimpress
+                                object.visitnumber += 1
+                                object.visitAt = Date()
+                            }
+                            
+                        }
+                        // 初訪問時
+                        
+                        else {
+                            
+                            let newObject = VRamenDatabase()
+                            let newId = ObjectId.generate() // @Persisted(primaryKey: true) var id:ObjectId = ObjectId()  こいつで一意なIDを生成してくれなかったから手動
+                            
+                            newObject.id = newId
+                            newObject.name = shopname
+                            newObject.rating = selectrating
+                            newObject.isOpenNow = selectshopstate
+                            newObject.latitude = targetdestination.latitude
+                            newObject.longitude = targetdestination.longitude
+                            newObject.isimpress = isimpress
+                            newObject.evaluate = evaluate
+                            newObject.genre = genre.rawValue
+                            newObject.visitnumber = 1
+                            
+                            newObject.prefecture = ""
+                            newObject.city = ""
+                            
+                            try realm.write {
+                                realm.add(newObject)
+                            }
+                            
+                            visitid = newId
+                            isvisititem = true
+                            selectevaluate = evaluate
+                        }
+                        
+                        // UIリセット
+                        isimpress = ""
+                        evaluate = 0.0
+                        visititemnum = 0
+                        
+                    } catch {
+                        print("Realm error:", error)
+                    }
+                    
+                    // 地名補完（非同期）
+                    LocationHelper.getAreaName(
+                        latitude: targetdestination.latitude,
+                        longitude: targetdestination.longitude
+                    ) { prefecture, city in
+                        
+                        do {
+                            let realm = try Realm()
+                            
+                            if let vid = visitid,
+                               let object = realm.object(ofType: VRamenDatabase.self,
+                                                         forPrimaryKey: vid) {
+                                
+                                try realm.write {
+                                    object.prefecture = prefecture
+                                    object.city = city
+                                }
+                            }
+                            
+                        } catch {
+                            print("Realm update error:", error)
+                        }
+                    }
+                    
+                    // 閉じる
+                    isvisitalert = false
+                    isTap = false
+                }
+            )
+            .frame(width: 370, height: 480)
+            .background(.white)
+            .cornerRadius(20)
+        }
+    }
+    .zIndex(3)
+}
+
+// 初回未記録メッセージ
+if isfirsttimenotice {
+    ZStack {
+        Color.gray.opacity(0.3)
+            .ignoresSafeArea()
+        
+        VStack(spacing: 20) {
+            Text("まだラーメンの記録がありません")
+                .font(.title2)
+            
+            Text("お店をタップして記録してみよう！")
+                .font(.title2)
+            
+            Button("閉じる") {
+                isfirsttimenotice = false
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 50)
+            .background(Color.blue)
+            .cornerRadius(15)
+            .foregroundColor(.white)
+        }
+        .padding(20)
+        .frame(maxWidth: 350)
+        .background(Color.white)
+        .cornerRadius(20)
+    }
+}
+
+// 店詳細（Bottom Sheet）
+
+if isTap { // お店のアイコンをタップ
+    
+    ZStack(alignment: .bottom) {
+        
+        Color.black.opacity(0.10)
+            .ignoresSafeArea()
+            .onTapGesture {
+                selectevaluate = nil
+                visitid = nil
+                isTap = false
+            }
+        
+        ScrollView {
+            
+            VStack(spacing: 0) {
+                
+                // ===== ヘッダー =====
+                ZStack(alignment: .topTrailing) {
+                    
+                    HStack {
+                        Spacer().frame(width: 320)
+                        
+                        Button(action: {
+                            selectevaluate = nil
+                            visitid = nil
+                            isTap = false
+                        }) {
+                            Image(systemName: "xmark")
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                        }
+                        
+                        Spacer()
+                    }
+                }
+                
+                // ===== 店情報カード =====
+                VStack(alignment: .leading, spacing: 16) {
+                    
+                    VStack(alignment: .leading, spacing: 8) { // 店名
+                        Text(shopname)
+                            .font(.title)
+                            .bold()
+                        
+                        HStack(spacing: 6) { // Google評価値
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                            
+                            Text("\(selectrating, specifier: "%.1f")")
+                                .font(.headline)
+                            
+                            Text("Google")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    // 訪問済みお店
+                    if let slevaluate = selectevaluate { 
+                        HStack(spacing: 6){
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.yellow)
+                            
+                            Text("\(String(slevaluate))")
+                                .font(.body)
+                            
+                            
+                            Text("自己評価")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                                .frame(width:100)
+                            
+                            Text("訪問回数　\(visititemnum)回")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    
+                    
+                    Divider()
+                    
+                    
+                    // ===== 距離情報 =====
+                    if let route {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("距離")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                
+                                Text("\(Int(route.distance)) m")
+                                    .font(.title3)
+                                    .bold()
+                            }
+                            
+                            Spacer()
+                        }
+                    }
+                    
+                    
+                    // ===== 操作系 =====
+                    VStack(spacing: 12) {
+                        
+                        // 距離検索
+
+/*
+MapKitを利用して距離を取得したり、Apple Mapsに飛ばしたりする
+*/
+                        Button(action: {
+                            
+                            Task {
+                                do {
+                                    
+                                    let request = MKDirections.Request() 
+                                    request.source = MKMapItem.forCurrentLocation() //　現在地
+                                    request.destination = MKMapItem( // 目的地
+                                        placemark: MKPlacemark(coordinate: targetdestination)
+                                    )
+                                    
+                                    if selecttransportation == "電車・バス" { //　交通ルート
+                                        request.transportType = .transit
+                                    } else if selecttransportation == "自動車" {
+                                        request.transportType = .automobile
+                                    } else {
+                                        request.transportType = .walking
+                                    }
+                                    
+                                    let directions = MKDirections(request: request) // MKdirectionsに情報を載せる
+                                    let response = try await directions.calculate() // 距離計算結果  (非同期(短))
+
+
+                                   // if let routef = response.routes.first {  /*元々このアプリの地図上に表示する予定だったが、Map計算が重くなるからやめた*/
+                                    //    route = routef
+                                  //  }
+                                    
+                                } catch {
+                                    print("移動方法を選択してね")
+                                }
+                            }
+                        }) {
+                            Text("距離を計算")
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .background(
+                                    LinearGradient(//グラデーション　すごくインスタっぽいデザイン
+                                        colors: [Color.blue, Color.purple],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                                  )
+                                )
+                                .foregroundColor(.white)
+                                .cornerRadius(15)
+                        }
+                        
+                        
+                        // Picker
+                        Picker("移動手段", selection: $selecttransportation) {
+                            Text("徒歩").tag("徒歩")
+                            Text("電車・バス").tag("電車・バス")
+                            Text("自動車").tag("自動車")
+                        }
+                        .pickerStyle(.segmented)//pickerのmenuは普通にダサいからこっちの方が良い
+                        
+                        
+                        // 経路案内
+                        Button("マップで開く") {
+                            let mapItem = MKMapItem(  // 目的地
+                                placemark: MKPlacemark(coordinate: targetdestination)
+                            )
+                            mapItem.name = shopname // 店名
+                            mapItem.openInMaps(launchOptions: [  // Apple Mapsの起動
+                                MKLaunchOptionsDirectionsModeKey:
+                                    MKLaunchOptionsDirectionsModeWalking
+                            ])
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 15)
+                                .stroke(Color.blue, lineWidth: 2)
+                        )
+                    }
+                    
+                    
+                    Divider()
+                    
+                    
+                    // 訪問前
+                    if !isvisititem {  // 訪問ボタンの表示管理
+                        Button("訪問する") {
+                            isvisitalert = true
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Color.orange)
+                        .foregroundColor(.white)
+                        .cornerRadius(15)
+                        
+                    } else {//訪問済み
+
+                        Button("訪問を削除") {
+                            if let vid = visitid {
+                                delete(vid: vid)
+                                isvisititem = false
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Color.red)
+                        .foregroundColor(.white)
+                        .cornerRadius(15)
+                        
+                        Button("再訪"){
+                            isvisitalert = true
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Color(red:0.6,green:0.8,blue:0.45))
+                        .foregroundColor(.white)
+                        .cornerRadius(15)
+                        
+                    }
+                    
+                    
+                    // ===== 営業時間 =====
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button(action: {
+                            withAnimation {
+                                isTime.toggle()
+                            }
+                        }) {
+                            HStack {
+                                Text("営業時間")
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .rotationEffect(.degrees(isTime ? 180 : 0))
+                            }
+                        }
+                        
+                        if isTime {
+                            ForEach(selectshopregularhours, id: \.self) { item in
+                                Text(item)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                    }
+
+                    // 感想
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button(action: {
+                            
+                            print(3)
+                        }) {
+                            HStack {
+                                Text("感想")
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .rotationEffect(.degrees(selimpress == "" ? 0 : 180))
+                            }
+                            
+                        }
+                        
+                        if selimpress != ""{
+                            
+                            Text(selimpress)
+                            
+                                .foregroundColor(.gray)
+                            
+                        }
+                        
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(25)
+            }
+        }
+        
+        
+        
+        
+        .frame(height: 450)//ScrollViewに対して
+
+        
+        
+    }//isTap
+    
+    
+    .zIndex(1)
+}
+
+}
+
+// - メニュー
+
+    .overlay(alignment:.bottom){ // overlayはZStackの一番上
+
+        if !isvisitanalize && !visitlistflag && !isTap{
+            HStack {
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 10) {
+                    
+                    // ===== メニュー本体 =====
+                    if ismenuList {
+                        VStack(spacing: 12) {
+                            
+                            mapActionButton(
+                                title: "訪問マップ",
+                                icon: "map.fill"
+                            ) {
+                                isvisit.toggle()
+                                if isvisit {
+                                    reserveshops = allShops
+                                    allShops.removeAll()
+                                } else {
+                                    allShops = reserveshops
+                                }
+                                updateDisplayShops()
+                                updateClusters()
+                            }
+                            
+                            mapActionButton(
+                                title: "判定",
+                                icon: "chart.pie.fill"
+                            ) {
+                                ishanteiview.toggle()
+                            }
+                            
+                            mapActionButton(
+                                title: "訪問リスト",
+                                icon: "list.bullet"
+                            ) {
+                                visitlistflag.toggle()
+                            }
+                            
+                            mapActionButton(
+                                title: "分析",
+                                icon: "chart.bar.fill"
+                            ) {
+                                isvisitanalize.toggle()
+                            }
+                        }
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 16)
+                        .background(.white)
+                        .cornerRadius(20)
+                        
+                        .transition(.move(edge: .trailing).combined(with: .opacity))//
+                    }//if ismenulist
+                    
+                    // トグルボタン  メニューのon, off 
+
+                    Button {
+                        withAnimation(.spring()) {
+                            ismenuList.toggle()
+                        }
+                    } label: {
+                        Image(systemName: ismenuList ? "xmark" : "line.3.horizontal")//状況に応じてtoggleアイコンが変わる
+                            .frame(width: 50, height: 50)
+                            .background(.white)
+                            .clipShape(Circle())
+                        
+                    }
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 30)
+                
+            }
+        }
+    }
+    .ignoresSafeArea(.keyboard)
+
+    .onAppear(){ //画面表示で一旦訪問済表示店のCheck
+        visitedShops = visitramendatabase.map{ramenshop in
+            RamenShop(
+                name:ramenshop.name,
+                rating:ramenshop.rating,
+                coordinate: CLLocationCoordinate2D(
+                    latitude: ramenshop.latitude, longitude: ramenshop.longitude
+                ),
+                isOpenNow: ramenshop.isOpenNow,
+                regularHours:Array(ramenshop.regularHours),
+                isvisited: true,
+                vid:ramenshop.id,
+                visitrating:ramenshop.evaluate
+            )
+        }
+        levelCheck()  // 画面初期のレベルCheck
+    }
+
+// - API検索結果変化時　　
+
+// Ramendata.shops の件数が変化したら再計算　*ただし、現在の機能の構造では初回の周辺検索時のみ起動
+
+            .onChange(of:Ramendata.shops.count) { _ in
+                // API側の店舗一覧
+                var shops = Ramendata.shops
+                
+                var okshops:[RamenShop] = [] // 未訪問店舗格納用
+                
+                let visitedSet = Set(visitramendatabase.map {visit in  
+                    key_VShop(for: visit) 
+                }) // 訪問済み店舗を Set 化して高速検索 O(N) #ゆくゆくは
+               
+                for shop in shops{// 訪問済み以外だけ残す
+                    
+                    if !visitedSet.contains(key_Shop(for: shop)){
+                        okshops.append(shop)
+                    }
+                }
+
+    // 表示用ベース更新
+       allShops = okshops
+    
+    // 現在地図範囲で再フィルタ
+       updateDisplayShops()
+    
+    // クラスタ更新
+       updateClusters()
+                
+            }
+
+// - 訪問済みDB変化時
+            
+            .onChange(of:visitramendatabase.count) { _ in 
+
+                visitedShops = visitramendatabase.map { ramenshop in
+
+                    RamenShop(
+                        name: ramenshop.name,
+                        rating: ramenshop.rating,
+                        coordinate: CLLocationCoordinate2D(
+                            latitude: ramenshop.latitude,
+                            longitude: ramenshop.longitude
+                        ),
+                        isOpenNow: ramenshop.isOpenNow,
+                        regularHours: Array(ramenshop.regularHours),
+                        isvisited: true,
+                        vid:ramenshop.id,
+                        visitrating:ramenshop.evaluate
+                    )
+                    
+                }
+
+/*繰り返し分けるのは、重複防止*/
+
+    // API側店舗
+    var shops = Ramendata.shops
+    
+    // 未訪問店舗格納用
+    var okshops: [RamenShop] = []
+    
+    // 訪問済み Set
+    let visitedSet = Set(
+        visitramendatabase.map {
+            visit in key_VShop(for: visit)
+        }
+    )
+    
+    // 訪問済み除外
+    for shop in shops {
+        
+        if !visitedSet.contains(
+            key_Shop(for: shop)
+        ) {
+            okshops.append(shop)
+        }
+    }
+    
+    // ベース更新
+    allShops = okshops
+    
+    // 再描画
+    updateDisplayShops()
+    
+    // クラスタ再計算
+    updateClusters()
+    
+    // レベル更新
+    levelCheck()
+            }
+
+// - 検索結果一覧
+
+            .sheet(isPresented: $isSearchRamen) {
+                VStack{
+                    List{ // リスト表示
+                        ForEach(SearchRamendata.ramenshops){shop in
+                            Button(action:{ // リストからラーメン店名選択
+
+                                DispatchQueue.main.async {
+                                    selectedShop = shop 
+
+                                    // 選択したお店の座標を中心にMap移動
+
+                                    locationManager.region = MKCoordinateRegion(
+                                        center: CLLocationCoordinate2D(latitude: shop.coordinate.latitude, longitude: shop.coordinate.longitude),
+                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                    )
+
+                                    isSearchRamen = false
+                                }
+                                
+                            }){
+                                Text(shop.name)
+                            }
+                        }
+                        
+                        
+                    }
+                }
+                
+            }
+
+   // - 初回現在地取得時
+
+            .onChange(of:locationManager.didSetInitialRegion) // 軽い処理
+            {done in 
+                // 初回のみ
+                guard done, !didFetch else {
+                    return 
+                }
+
+                didFetch = true
+                let center = locationManager.region.center
+                
+                
+                let radius: Double = 100 // 半径100m
+                
+                let latDelta = radius / 111_000.0  // meter -> 緯度経度変換
+                let lonDelta =  radius / (111_000.0 * cos(center.latitude * .pi / 180))
+
+                // 範囲
+
+                let minLat = center.latitude - latDelta
+                let maxLat = center.latitude + latDelta
+                let minLon = center.longitude - lonDelta
+                let maxLon = center.longitude + lonDelta
+
+                do{
+                    // Realm内検索  現在地半径100mの範囲で周囲検索したものをRealm内検索
+
+                    let realm = try Realm()
+                    let results = realm.objects(RamenDatabase.self)
+                        .filter("latitude BETWEEN {%f,%f} AND longitude BETWEEN {%f,%f}",minLat,maxLat,minLon,maxLon)
+                    
+                    if results.isEmpty{//DB未保存
+                        Ramendata.fetch(
+                            latitude: center.latitude,
+                            longitude: center.longitude
+                        )
+                    }
+
+                    else{
+
+                        if let result = results.first { //Realm => RamenDataに型変更
+                            
+                            Ramendata.shops = result.ramenshops.map { shop in 
+                                RamenShop(
+                                    name: shop.name,
+                                    rating: shop.rating,
+                                    coordinate: CLLocationCoordinate2D(
+                                        latitude: shop.latitude,
+                                        longitude: shop.longitude
+                                    ),
+                                    isOpenNow: shop.isOpenNow,
+                                    regularHours: Array(shop.regularHours),
+                                    isvisited:shop.isvisited,
+                                    vid:nil,
+                                    visitrating:nil
+                                )
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    
+                }catch{print("")}
+                
+            }
+            .onAppear{
+          // 初回ユーザー作成
+
+                if userinfo.first == nil{//登録チェック
+                    do{
+                        let realm = try Realm()
+                        let User = UserInfo()
+                        User.name = "" //　後々SNS用に名前も取得する
+                        User.level = 0  // 自分のレベル
+                        User.lastExp = 0 // レベルに対して残り訪問数
+                        
+                        try realm.write{
+                            realm.add(User)
+                        }
+                    }catch{}
+                }
+                
+                if visitramendatabase.count == 0{ // 訪問済みdbのアイテムがない
+                    isfirsttimenotice = true　// 初回案内
+                }
+            }
+            
+        }
+
+    }
+
+// - レベル関連
+
+ // レベルに対して称号取得
+    func levelTitle(level: Int) -> String {
+        switch level {
+        case 0..<5: return "見習い"
+        case 5..<15: return "常連"
+        case 15..<30: return "探求者"
+        case 30..<50: return "職人"
+        default: return "覇者"
+        }
+    }
+
+//　レベルに対して　経験値計算
+    func RequiredExp(level: Int) -> Int {
+        if level >= 0{
+            let t = Double(level) / 100.0
+            return Int(5 + 295 * pow(t, 3))
+        }
+        else{
+            return 1
+        }
+    }
+
+// レベルの更新
+
+    func levelCheck(){
+        
+        if let userinf = userinfo.first{
+
+            level = userinf.level // 現在のレベル
+
+        // 再訪回数含めて訪問回数取得
+
+            visitcount = visitramendatabase.map { $0.visitnumber }.reduce(0, +)  // O(N)
+
+        // 更新訪問数
+
+            var visit_exp_now = visitcount - userinf.lastExp 
+
+        //　そのレベルに対しての途中経験値
+
+            var base = userinf.resExp 
+
+        //  そのレベルに対して　途中経験値 + 更新分
+
+            var tempExp = visit_exp_now + base
+
+        // レベルup
+
+            if tempExp >= Int(RequiredExp(level: level)){
+                
+                while visit_exp_now + base >= Int(RequiredExp(level: level)){
+                    for i in base...Int(RequiredExp(level: level)){
+
+                        // 他のUI更新変数とタイミングずらす
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                            progress = Double(i) / Double(RequiredExp(level: level))
+                        }
+                    }
+
+                    level += 1
+
+                    // 使用経験値分減算
+
+                    visit_exp_now -= Int(RequiredExp(level: level)) - base
+
+                    //レベルアップしたら途中経験値0
+
+                    base = 0
+
+                }//この時点で0<=visit_exp_now<=Required
+
+            // 残り経験値
+                for i in base...base + visit_exp_now{
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                        progress = Double(i) / Double(RequiredExp(level: level))
+                    }
+                }
+                base = visit_exp_now // 途中経験値
+            }
+
+            else{ // level down or stay
+
+                if visit_exp_now >= 0{ //stay
+
+                    for i in base...min(Int(RequiredExp(level: level)),tempExp){
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                            progress = Double(i) / Double(RequiredExp(level: level))
+                        }
+                    }
+                }
+                else{ // down
+
+                    while tempExp < 0{ // level down処理
+                        level -= 1
+                        tempExp += RequiredExp(level: level) // 下げたレベルでのtempExp
+                        base = RequiredExp(level: level) // 途中経験値は下げたレベルでのbase
+                    }
+
+                    for i in stride(from: base - 1, through: base + visit_exp_now - 1, by: -1) {//基本は1ずつしか経験値は減らないし貯まらない
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.02){
+                            progress = Double(i) / Double(RequiredExp(level: level))
+                        }
+                    }
+
+                }
+                base += visit_exp_now //ベース変更
+                
+            }
+
+        // - Realm保存 (ユーザ情報)
+
+            let realm = try! Realm()
+            if let user = realm.objects(UserInfo.self).first {
+                try! realm.write{
+                    user.level = level
+                    user.lastExp = visitcount
+                    user.resExp = base
+                }
+            }
+            
+            res = RequiredExp(level: level) - base
+            
+            shougou = levelTitle(level:level) //　称号計算
+
+        }
+    }
+
+
+// ====== Map cluster =========
+
+// - region更新判定  中心座標の変化 + ズーム変化
+
+    func shouldUpdateRegion(_ new: MKCoordinateRegion) -> Bool {
+
+    // 前回regionがないなら更新
+        guard let old = lastRegion else { return true }
+        
+        // ズーム差分
+        let zoomDiff = abs(new.span.latitudeDelta - old.span.latitudeDelta)
+        
+        // 中心座標差分
+        let latDiff = abs(new.center.latitude - old.center.latitude)
+        let lonDiff = abs(new.center.longitude - old.center.longitude)
+        
+        // 更新敷居値
+
+        let zoomThreshold = 0.02
+        let moveThreshold = 0.01
+        
+        return zoomDiff > zoomThreshold || latDiff > moveThreshold || lonDiff > moveThreshold
+    }
+
+// - map範囲内filter
+    
+    func filterShops(
+        shops: [RamenShop],
+        region: MKCoordinateRegion
+    ) -> [RamenShop] {
+
+        // spanは画面の表示範囲  ズームレベル
+
+        let latDelta = region.span.latitudeDelta 
+        let lonDelta = region.span.longitudeDelta
+        
+        // map内だけ店舗表示  /*計算量削減*/ 
+
+        let filtered = shops.filter { shop in
+            let latDiff = abs(shop.coordinate.latitude - region.center.latitude)
+            let lonDiff = abs(shop.coordinate.longitude - region.center.longitude)
+            
+            return latDiff < latDelta / 2 && lonDiff < lonDelta / 2
+        }
+
+        return filtered
+    }
+
+ // - cluster key   
+
+    func gridKey(for shop: RamenShop, precision: Double) -> String {
+        let lat = Int(shop.coordinate.latitude * precision)
+        let lon = Int(shop.coordinate.longitude * precision)
+        return "\(lat)_\(lon)"
+    }
+    
+// - cluster生成
+
+// 表示はクラスターごとに一つ
+
+    func makeClusters(_ shops: [RamenShop]) -> [ClusterShop] {
+        
+        let delta = locationManager.region.span.latitudeDelta
+
+        // zoomに応じてcluster粒度変更 どれだけ細かくクラスターを分けるのか
+
+        let precision = Double(max(5.0,20.0/delta))
+        
+        let grouped = Dictionary(grouping: shops) { shop in//shopsの中のshopに対して{} でグループ分けのkeyを決める!
+            gridKey(for: shop,precision: precision)
+        }
+        
+        return grouped.map { (_, shops) in
+
+            // 単独
+
+            if shops.count == 1 {
+                let s = shops[0]
+                return ClusterShop(
+                    coordinate: s.coordinate,
+                    count: 1,
+                    shops: shops
+                )
+            }
+            
+            // 複数ある場合はまとめる (代表値平均座標)
+
+            let avgLat = shops.map { $0.coordinate.latitude }.reduce(0, +) / Double(shops.count)
+            let avgLon = shops.map { $0.coordinate.longitude }.reduce(0, +) / Double(shops.count)
+            
+            return ClusterShop(
+                coordinate: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLon),
+                count: shops.count,
+                shops: shops
+            )
+        }  
+    }
+    
+    
+  // - cluster更新  
+
+    func updateClusters() {
+        
+        if displayShops.count <= 100 { // 少数ならお店をクラスタリングせずそのまま表示
+
+            clusters = displayShops.map {
+                ClusterShop(
+                    coordinate: $0.coordinate,
+                    count: 1,
+                    shops: [$0]
+                )
+            }
+            //print(displayShops.count)
+        }
+        
+        else{
+            
+             // 多数ならcluster化
+            
+            clusters = makeClusters(displayShops.map { shop in
+                var s = shop
+                return s
+            })
+            
+        }
+        
+    }
+
+    @MainActor
+    func updateDisplayShops() {
+        
+        let base = allShops + visitedShops + (selectedShop.map { [$0] } ?? [])//selectShopsはいらないかもバグの温床
+        
+        displayShops = filterShops(
+            shops: base,
+            region: locationManager.region
+        )
+    }
+    
+// - 距離計算  座標 => 距離
+    
+    func distance(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
+        let loc1 = CLLocation(latitude: a.latitude, longitude: a.longitude)
+        let loc2 = CLLocation(latitude: b.latitude, longitude: b.longitude)
+        return loc1.distance(from: loc2) // meter
+    }
+    
+    func key_Shop(for shop: RamenShop) -> String {
+
+    // 緯度経度を小数4桁へ丸める
+    // だいたい10m前後精度
+
+        let lat = (shop.coordinate.latitude * 10000).rounded() / 10000
+        let lon = (shop.coordinate.longitude * 10000).rounded() / 10000
+        return "\(shop.name)_\(lat)_\(lon)"
+    }
+
+// - 訪問済み店舗識別key
+
+    func key_VShop(for shop: VRamenDatabase) -> String {//なんでこれで10m単位で丸め込めるかよく分からんけどね😃
+        let lat = (shop.latitude * 10000).rounded() / 10000
+        let lon = (shop.longitude * 10000).rounded() / 10000
+        return "\(shop.name)_\(lat)_\(lon)"
+    }
+
+// - map移動
+
+    func moveTo(latitude:Double,longitude:Double) {//ここでMapに触る　関数に分解した方がわかりやすい これはとにかく座標を写すやつ
+        locationManager.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: latitude,
+                longitude: longitude
+            ),
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+    }
+
+// - Realm -> 表示用変換
+
+    func convert(_ ramenshop: VRamenDatabase) -> RamenShop {
+        
+        let coordinate = CLLocationCoordinate2D(
+            latitude: ramenshop.latitude,
+            longitude: ramenshop.longitude
+        )
+        
+        let hours = Array(ramenshop.regularHours)
+        
+        return RamenShop(
+            name: ramenshop.name,
+            rating: ramenshop.rating,
+            coordinate: coordinate,
+            isOpenNow: ramenshop.isOpenNow,
+            regularHours: hours,
+            isvisited: true,
+            vid: ramenshop.id,
+            visitrating: ramenshop.evaluate
+        )
+    }
+
+// 普通に訪問アイテム削除
+
+    func delete(vid:ObjectId){
+        do{
+            let realm = try Realm()
+            
+            if let obj = realm.object(ofType: VRamenDatabase.self, forPrimaryKey: vid){
+                try realm.write{
+                    realm.delete(obj)
+                }
+            }
+            visitid = nil
+            visititemnum = 0
+            isvisititem = false
+            
+            isTap = false
+            
+            
+        }catch{
+            print("失敗")
+        }
+        
+        
+    }
+    
+}
+    
+    @ViewBuilder
+    func mapActionButton(
+        title: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        
+        Button(action: action) {
+            HStack(spacing: 12) {
+                
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 24)
+                
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                
+                Spacer()
+                
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray.opacity(0.6))
+            }
+            
+            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .background(Color.gray.opacity(0.08))
+            .cornerRadius(14)
+        }
+        .frame(width:180)
+        .foregroundColor(.primary)
+    }
+
+
+
+extension View {//強制的にこいつを呼び出すとfocusを外す
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil,
+            for: nil)
+    }  //UIApplicationアプリ全体の管理
+}
+
+//通常の  id:ObjectId　だとrealm.addするタイミングで idを割り振る　今 ramendata は idが振られずに 配列に追加する　それだと　addするとき同じものだと認識されちゃうかも　??
