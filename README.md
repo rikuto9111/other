@@ -1,6 +1,6 @@
 <h2>麺録</h2>
 
-  <img src="demo_4.gif" width="280">
+<img src="demo_4.gif" width="300" height = "600">
 
 
 ■ 概要
