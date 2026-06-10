@@ -1,8 +1,8 @@
 <h2>麺録</h2>
-<p align="center">
+
   <img src="demo_anime.gif" width="280">
   <img src="demo_dokusho.gif" width="280">
-</p>
+
 
 ■ 概要
 
