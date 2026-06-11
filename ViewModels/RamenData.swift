@@ -2,6 +2,24 @@ import MapKit
 import SwiftUI
 import RealmSwift
 
+enum Config { // APIkeyのセット   APIKeys.plist を作成してください。
+
+    static var googleAPIKey: String {
+
+        guard let path = Bundle.main.path(
+            forResource: "APIKeys",
+            ofType: "plist"
+        ),
+        let dict = NSDictionary(contentsOfFile: path),
+        let key = dict["GOOGLE_API_KEY"] as? String
+        else {
+            fatalError("API Key not found")
+        }
+
+        return key
+    }
+}
+
 // 地図表示用のラーメン店モデル
 struct RamenShop: Identifiable {
 
@@ -94,9 +112,9 @@ class RamenData {
 
         request.httpMethod = "POST"
 
-        // APIキー
+        // APIキー   APIKeys.plist を作成してください。
         request.setValue(
-            "AIzaSyD9V-EGiuEnL7vgd-m7iP7KmooyILUoxVU",
+            Config.googleAPIKey,
             forHTTPHeaderField: "X-Goog-Api-Key"
         )
 
