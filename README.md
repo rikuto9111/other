@@ -1,6 +1,5 @@
-<h3>App Store: https://apps.apple.com/app/%E9%BA%BA%E9%8C%B2/id6767452389 </h3>
 <h2>麺録</h2>
-
+<h4>App Store: https://apps.apple.com/app/%E9%BA%BA%E9%8C%B2/id6767452389 </h4>
 <img src="demo_4.gif" width="300" height = "600">
 
 ■ 目的
