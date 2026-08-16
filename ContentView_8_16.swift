@@ -371,6 +371,12 @@ struct ContentView: View {
     
     @State private var updateCount = 0 // 一旦
     
+    
+    @State private var regionChangeCount = 0
+    @State private var mapUpdateCount = 0
+    @State private var totalMapUpdateTime: Double = 0
+    @State private var isMeasuring = false
+    
     var body: some View {
         
         NavigationStack {
@@ -485,6 +491,7 @@ struct ContentView: View {
                 } //一旦　8/8
                 */
                 
+                /*
                 .onChange(of: regionKey) { _ in
 
 
@@ -511,9 +518,87 @@ struct ContentView: View {
                         "MapUpdate",
                         state
                     )
-                }
-                 
+                }*/
                 
+                 /*
+                .onChange(of: regionKey) { _ in
+
+                    if isMeasuring {
+                        regionChangeCount += 1
+                    }
+
+                    let newRegion = locationManager.region
+
+                  //  if !shouldUpdateRegion(newRegion) {
+                     //   return
+                    //}
+
+                    lastRegion = newRegion
+
+                    let start = CFAbsoluteTimeGetCurrent()
+
+                    updateDisplayShops()
+                    updateClusters()
+
+                    let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+                    if isMeasuring {
+                        mapUpdateCount += 1
+                        totalMapUpdateTime += elapsed
+                    }
+                }*/
+                
+                .onChange(of: regionKey) { _ in
+
+                    // regionKeyが変化した回数
+                    if isMeasuring {
+                        regionChangeCount += 1
+                    }
+
+                    // 前回のdebounce待機をキャンセル
+                    debounceTask?.cancel()
+
+                    debounceTask = Task {
+
+                        // 200ms待つ
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+
+                        // 200ms以内に次の変更が来ていたら終了
+                        if Task.isCancelled {
+                            return
+                        }
+
+                        let newRegion = locationManager.region
+
+                        // 微小な移動なら更新しない
+                        if !shouldUpdateRegion(newRegion) {
+                            return
+                        }
+
+                        lastRegion = newRegion
+
+                        await MainActor.run {
+
+                           // let start = CFAbsoluteTimeGetCurrent()
+                            
+                            
+                            updateDisplayShops()
+                            let start = CFAbsoluteTimeGetCurrent()
+                            
+                            updateClusters()
+
+                            let elapsed = CFAbsoluteTimeGetCurrent() - start
+                            print("Cluster update time:", elapsed * 1000, "ms")
+                            
+                            // 実際にMapUpdateまで到達した回数・時間
+                            if isMeasuring {
+                                mapUpdateCount += 1
+                                totalMapUpdateTime += elapsed
+                            }
+                        }
+                    }
+                }
+               
                 
                 .ignoresSafeArea()
                 
@@ -528,6 +613,9 @@ struct ContentView: View {
                 VStack {
                     
                     // - 検索バー
+                    Button("5秒計測") {
+                        startMeasurement()
+                    }
                     
                     HStack {
                         
@@ -1714,8 +1802,39 @@ struct ContentView: View {
     
     
     
-    
 
+func startMeasurement() {
+
+    // リセット
+    regionChangeCount = 0
+    mapUpdateCount = 0
+    totalMapUpdateTime = 0
+
+    isMeasuring = true
+
+    print("===== 計測開始 =====")
+
+    Task {
+        // 5秒待つ
+        try? await Task.sleep(nanoseconds: 6_400_000_000)
+
+        isMeasuring = false
+
+        print("""
+        ===== 5(6)秒計測結果 =====
+        Region changes : \(regionChangeCount)
+        Map updates    : \(mapUpdateCount)
+        Total time     : \(totalMapUpdateTime * 1000) ms
+        Average time   : \(mapUpdateCount > 0
+            ? totalMapUpdateTime * 1000 / Double(mapUpdateCount)
+            : 0) ms
+        ======================
+        """)
+    }
+}
+
+
+/*
 func generateDummyShops(
     count: Int,
     center: CLLocationCoordinate2D,
@@ -1749,7 +1868,62 @@ func generateDummyShops(
     }
 }
 
+*/
+    struct SeededGenerator: RandomNumberGenerator {
+        private var state: UInt64
+
+        init(seed: UInt64) {
+            self.state = seed
+        }
+
+        mutating func next() -> UInt64 {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return state
+        }
+    }
     
+    func generateDummyShops(
+        count: Int,
+        center: CLLocationCoordinate2D,
+        radius: Double = 0.01
+    ) -> [RamenShop] {
+
+        var generator = SeededGenerator(seed: 42)
+
+        return (0..<count).map { index in
+
+            let latitudeOffset = Double.random(
+                in: -radius...radius,
+                using: &generator
+            )
+
+            let longitudeOffset = Double.random(
+                in: -radius...radius,
+                using: &generator
+            )
+
+            let rating = Double.random(
+                in: 3.0...5.0,
+                using: &generator
+            )
+
+            let isOpenNow = Bool.random(using: &generator)
+
+            return RamenShop(
+                name: "Dummy Ramen \(index)",
+                rating: rating,
+                coordinate: CLLocationCoordinate2D(
+                    latitude: center.latitude + latitudeOffset,
+                    longitude: center.longitude + longitudeOffset
+                ),
+                isOpenNow: isOpenNow,
+                regularHours: ["11:00-22:00"],
+                isvisited: false,
+                vid: nil,
+                visitrating: nil
+            )
+        }
+    }
     
     // - レベル関連
     
@@ -1976,11 +2150,14 @@ func generateDummyShops(
     func makeClusters(_ shops: [RamenShop]) -> [ClusterShop] {
         
         let delta = locationManager.region.span.latitudeDelta
-        
+        print(delta)
         // zoomに応じてcluster粒度変更 どれだけ細かくクラスターを分けるのか
         
         let precision = Double(max(5.0,20.0/delta))
+        //let precision = Double(max(5.0,642.5))
         
+        print(precision)
+        //print(delta)
         let grouped = Dictionary(grouping: shops) { shop in//shopsの中のshopに対して{} でグループ分けのkeyを決める!
             gridKey(for: shop,precision: precision)
         }
@@ -2016,7 +2193,7 @@ func generateDummyShops(
     
     func updateClusters() {
         
-        if displayShops.count <= 100 { // 少数ならお店をクラスタリングせずそのまま表示
+        if displayShops.count <= 10000 { // 少数ならお店をクラスタリングせずそのまま表示
             
             clusters = displayShops.map {
                 ClusterShop(
@@ -2038,6 +2215,8 @@ func generateDummyShops(
             })
             
         }
+        print("displayShops:", displayShops.count)
+        print("clusters:", clusters.count)
         
     }
     
